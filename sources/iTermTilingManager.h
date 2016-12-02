@@ -7,34 +7,30 @@
 //
 
 #import <Foundation/Foundation.h>
-#import "iTermWeakReference.h"
-#import "PTYWindow.h"
-#import "PseudoTerminal.h"
+#import <AppKit/AppKit.h>
+#import "iTermTilingFrame.h"
 
-@interface iTermTilingFrameBorder : NSView
-@property (retain) NSColor *borderColor;
-@property (assign) CGFloat borderWidth;
-@property (assign) CGFloat cornerRadius;
-@end
+@class iTermTilingFrame;
 
-@class iTermTilingWindow;
-
-@interface iTermTilingFrame : NSObject
-@property (retain) NSWindow *borderWindow;
-@property (retain) iTermTilingFrameBorder *border;
-@property (assign) CGRect rect;
-@property (retain) NSMutableArray<iTermTilingWindow *> *windows;
-- (id)initWithRect:(CGRect)rect;
-- (void)addWindow:(iTermTilingWindow *)window;
-- (void)removeWindow:(iTermTilingWindow *)window;
-@end
-
-@interface iTermTilingWindow : NSObject
-@property (nonatomic, retain) PseudoTerminal<iTermWeakReference> *terminal;
-@property (nonatomic, retain) iTermTilingFrame *frame;
-- (id)initForTerminal:(PseudoTerminal *)terminal;
-@end
+typedef NS_ENUM(NSInteger, iTermTilingFrameDirection) {
+        iTermTilingFrameDirectionLeft,
+        iTermTilingFrameDirectionRight,
+        iTermTilingFrameDirectionAbove,
+        iTermTilingFrameDirectionBelow,
+};
 
 @interface iTermTilingManager : NSObject
+
+@property BOOL actionMode;
+@property (assign) NSMutableArray<iTermTilingFrame *> *frames;
+@property (assign) NSColor *activeFrameBorderColor;
+@property int borderWidth;
+@property int cornerRadius;
+@property int gap;
+
 + (instancetype)sharedInstance;
+- (iTermTilingFrame *)currentFrame;
+- (BOOL)downgradeKeyAction:(int)action;
+- (BOOL)handleKeyEvent:(NSEvent *)event;
+
 @end

@@ -79,6 +79,7 @@
 #import "iTermModifierRemapper.h"
 #import "iTermPasteSpecialViewController.h"
 #import "iTermPreferences.h"
+#import "iTermTilingManager.h"
 #import "NSStringITerm.h"
 #import "PTYTextView.h"   // For selection movement units
 #import <Carbon/Carbon.h>
@@ -553,6 +554,49 @@ exit:
             actionString = @"Swap With Split Pane Below";
             break;
 
+        case KEY_ACTION_TILING_ACTION:
+            actionString = @"Tiling Window Manager Command";
+            break;
+        case KEY_ACTION_TILING_HSPLIT:
+            actionString = @"Tiling WM Action Mode - Horizontal Split";
+            break;
+        case KEY_ACTION_TILING_VSPLIT:
+            actionString = @"Tiling WM Action Mode - Vertical Split";
+            break;
+        case KEY_ACTION_TILING_FOCUS_LEFT:
+            actionString = @"Tiling WM Action Mode - Focus Left";
+            break;
+        case KEY_ACTION_TILING_FOCUS_RIGHT:
+            actionString = @"Tiling WM Action Mode - Focus Right";
+            break;
+        case KEY_ACTION_TILING_FOCUS_UP:
+            actionString = @"Tiling WM Action Mode - Focus Up";
+            break;
+        case KEY_ACTION_TILING_FOCUS_DOWN:
+            actionString = @"Tiling WM Action Mode - Focus Down";
+            break;
+        case KEY_ACTION_TILING_FOCUS_NEXT:
+            actionString = @"Tiling WM Action Mode - Focus Next";
+            break;
+        case KEY_ACTION_TILING_FOCUS_PREV:
+            actionString = @"Tiling WM Action Mode - Focus Previous";
+            break;
+        case KEY_ACTION_TILING_SWAP_LEFT:
+            actionString = @"Tiling WM Action Mode - Swap with Left";
+            break;
+        case KEY_ACTION_TILING_SWAP_RIGHT:
+            actionString = @"Tiling WM Action Mode - Swap with Right";
+            break;
+        case KEY_ACTION_TILING_SWAP_UP:
+            actionString = @"Tiling WM Action Mode - Swap with Above";
+            break;
+        case KEY_ACTION_TILING_SWAP_DOWN:
+            actionString = @"Tiling WM Action Mode - Swap with Below";
+            break;
+        case KEY_ACTION_TILING_REMOVE:
+            actionString = @"Tiling WM Action Mode - Remove Split";
+            break;
+
         default:
             actionString = [NSString stringWithFormat: @"%@ %d", @"Unknown Action ID", action];
             break;
@@ -620,9 +664,17 @@ exit:
         }
         return -1;
     }
-
+    
     // parse the mapping
     retCode = [[theKeyMapping objectForKey: @"Action"] intValue];
+    
+    if ([[iTermTilingManager sharedInstance] downgradeKeyAction:retCode]) {
+        if (text) {
+            *text = nil;
+        }
+        return -1;
+    }
+
     if(text != nil)
         *text = [theKeyMapping objectForKey: @"Text"];
 

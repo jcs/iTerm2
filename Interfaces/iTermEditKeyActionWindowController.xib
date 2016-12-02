@@ -193,6 +193,21 @@
                                             <menuItem title="Move End of Selection Back" tag="45" id="L33-q3-stz"/>
                                             <menuItem title="Move End of Selection Forward" tag="46" id="xRC-3K-RlB"/>
                                             <menuItem isSeparatorItem="YES" id="c8c-8I-caf"/>
+                                            <menuItem title="Tiling Window Manager Action" tag="57" id="RhP-Lx-fyE"/>
+                                            <menuItem title="Tiling WM Action Mode - Horizontal Split" tag="58" id="pJS-Oe-Pun"/>
+                                            <menuItem title="Tiling WM Action Mode - Vertical Split" tag="59" id="N0X-0Y-Km0"/>
+                                            <menuItem title="Tiling WM Action Mode - Focus Left" tag="60" id="fYS-AX-MVv"/>
+                                            <menuItem title="Tiling WM Action Mode - Focus Right" tag="61" id="cDC-q9-51w"/>
+                                            <menuItem title="Tiling WM Action Mode - Focus Above" tag="62" id="VxK-VU-RxG"/>
+                                            <menuItem title="Tiling WM Action Mode - Focus Below" tag="63" id="0XV-nr-t1V"/>
+                                            <menuItem title="Tiling WM Action Mode - Focus Next" tag="64" id="104-2Z-N3e"/>
+                                            <menuItem title="Tiling WM Action Mode - Focus Previous" tag="65" id="Y9h-ZV-oBV"/>
+                                            <menuItem title="Tiling WM Action Mode - Swap with Left" tag="66" id="gnB-VB-mNO"/>
+                                            <menuItem title="Tiling WM Action Mode - Swap with Right" tag="67" id="tUF-aA-HU1"/>
+                                            <menuItem title="Tiling WM Action Mode - Swap with Above" tag="68" id="oep-hh-I6K"/>
+                                            <menuItem title="Tiling WM Action Mode - Swap with Below" tag="69" id="yMP-H3-c1M"/>
+                                            <menuItem title="Tiling WM Action Mode - Remove Split" tag="70" id="fqt-gL-tQa"/>
+                                            <menuItem isSeparatorItem="YES" id="Lym-RO-frp"/>
                                             <menuItem title="Select Menu Item..." tag="25" id="haJ-OE-peX"/>
                                         </items>
                                     </menu>

@@ -34,6 +34,7 @@
 #import "iTermPreferences.h"
 #import "iTermScriptingWindow.h"
 #import "iTermShortcutInputView.h"
+#import "iTermTilingManager.h"
 #import "NSArray+iTerm.h"
 #import "NSTextField+iTerm.h"
 #import "NSWindow+iTerm.h"
@@ -137,6 +138,11 @@
         if ([self routeEventToShortcutInputView:event]) {
             return;
         }
+        
+        if ([[iTermTilingManager sharedInstance] actionMode]) {
+            if ([[iTermTilingManager sharedInstance] handleKeyEvent:event])
+                return;
+        }
 
         const NSUInteger allModifiers =
             (NSShiftKeyMask | NSControlKeyMask | NSCommandKeyMask | NSAlternateKeyMask);
@@ -161,7 +167,7 @@
                 return;
             }
         }
-
+        
         if ([[self keyWindow] isTerminalWindow]) {
             // Focus is in a terminal window.
             responder = [[self keyWindow] firstResponder];

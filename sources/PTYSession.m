@@ -35,6 +35,7 @@
 #import "iTermShortcut.h"
 #import "iTermShortcutInputView.h"
 #import "iTermTextExtractor.h"
+#import "iTermTilingManager.h"
 #import "iTermThroughputEstimator.h"
 #import "iTermWarning.h"
 #import "MovePaneController.h"
@@ -2317,6 +2318,9 @@ ITERM_WEAKLY_REFERENCEABLE
     if (keyBindingAction == KEY_ACTION_SELECT_MENU_ITEM) {
         DLog(@"Invoking keybinding action to select menu item %@", keyBindingText);
         [PTYSession selectMenuItem:keyBindingText];
+        return YES;
+    } else if (keyBindingAction == KEY_ACTION_TILING_ACTION) {
+        [[iTermTilingManager sharedInstance] handleKeyEvent:event];
         return YES;
     } else {
         return NO;
@@ -4928,6 +4932,10 @@ ITERM_WEAKLY_REFERENCEABLE
             [[[iTermController sharedInstance] currentTerminal] swapPaneDown];
             break;
 
+        case KEY_ACTION_TILING_ACTION:
+            [[iTermTilingManager sharedInstance] handleKeyEvent:event];
+            break;
+            
         default:
             ELog(@"Unknown key action %d", keyBindingAction);
             break;
