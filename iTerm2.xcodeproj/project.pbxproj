@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		01E994651DF12C0600FF4C23 /* iTermTilingManager.h in Headers */ = {isa = PBXBuildFile; fileRef = 01E994631DF12C0600FF4C23 /* iTermTilingManager.h */; };
+		01E994661DF12C0600FF4C23 /* iTermTilingManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 01E994641DF12C0600FF4C23 /* iTermTilingManager.m */; };
 		11EF6CBD28560AAAFBFB84C1 /* Pods_iTerm2XCTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 744E24C37326A4D002E72B01 /* Pods_iTerm2XCTests.framework */; };
 		1D027C111CD1867000B0FBFF /* iTermColorPresets.h in Headers */ = {isa = PBXBuildFile; fileRef = 1D027C0F1CD1867000B0FBFF /* iTermColorPresets.h */; };
 		1D027C121CD1867100B0FBFF /* iTermColorPresets.m in Sources */ = {isa = PBXBuildFile; fileRef = 1D027C101CD1867000B0FBFF /* iTermColorPresets.m */; };
@@ -2298,6 +2300,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		01E994631DF12C0600FF4C23 /* iTermTilingManager.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = iTermTilingManager.h; sourceTree = "<group>"; };
+		01E994641DF12C0600FF4C23 /* iTermTilingManager.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = iTermTilingManager.m; sourceTree = "<group>"; };
 		0464AB2F006CD2EC7F000001 /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = /System/Library/Frameworks/AppKit.framework; sourceTree = "<absolute>"; };
 		1D027C0F1CD1867000B0FBFF /* iTermColorPresets.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = iTermColorPresets.h; sourceTree = "<group>"; };
 		1D027C101CD1867000B0FBFF /* iTermColorPresets.m */ = {isa = PBXFileReference; fileEncoding = 4; indentWidth = 4; lastKnownFileType = sourcecode.c.objc; path = iTermColorPresets.m; sourceTree = "<group>"; };
@@ -5195,6 +5199,8 @@
 				A6FC49851C3A31840061B3BA /* iTermSystemVersion.m */,
 				A6FCB6081C6714230019184E /* iTermFullScreenWindowManager.h */,
 				A6FCB6091C6714230019184E /* iTermFullScreenWindowManager.m */,
+				01E994631DF12C0600FF4C23 /* iTermTilingManager.h */,
+				01E994641DF12C0600FF4C23 /* iTermTilingManager.m */,
 				A6FCB60C1C6714C70019184E /* iTermWeakReference.h */,
 				A6FCB60D1C6714C70019184E /* iTermWeakReference.m */,
 				A6EEA6661C83B95C00FA1594 /* iTermAutomaticProfileSwitcher.h */,
@@ -6098,6 +6104,7 @@
 				1DB40AB51B27B577005B83C7 /* PTYTabDelegate.h in Headers */,
 				1DB67CF11485C578005849A1 /* TmuxHistoryParser.h in Headers */,
 				1DB67CF51486BD3D005849A1 /* TmuxStateParser.h in Headers */,
+				01E994651DF12C0600FF4C23 /* iTermTilingManager.h in Headers */,
 				1DC38818148E840700B89F7C /* SolidColorView.h in Headers */,
 				1D7B9A691491D82F003A2A22 /* IntervalMap.h in Headers */,
 				1D8CDF521958F31700FE1BEE /* iTermSizeRememberingView.h in Headers */,
@@ -7609,6 +7616,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A6C763CE1B45C53A00E3C992 /* main.m in Sources */,
+				01E994661DF12C0600FF4C23 /* iTermTilingManager.m in Sources */,
 				A6E761651D39D216005C0E5C /* iTermMutableAttributedStringBuilder.m in Sources */,
 				1D1F8C1C1A32616A00167161 /* AMIndeterminateProgressIndicator.m in Sources */,
 				A6D22A431BC8BE6B004084E0 /* Model.xcdatamodeld in Sources */,

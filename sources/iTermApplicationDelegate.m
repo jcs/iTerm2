@@ -56,6 +56,7 @@
 #import "iTermRemotePreferences.h"
 #import "iTermRestorableSession.h"
 #import "iTermSystemVersion.h"
+#import "iTermTilingManager.h"
 #import "iTermTipController.h"
 #import "iTermTipWindowController.h"
 #import "iTermWarning.h"
@@ -192,6 +193,9 @@ static BOOL hasBecomeActive = NO;
 
     // Start tracking windows entering/exiting full screen.
     [iTermFullScreenWindowManager sharedInstance];
+
+    // Start tiling window manager
+    [iTermTilingManager sharedInstance];
 
     // Users used to be opted into the beta by default. Make sure the user is cool with that.
     [self promptAboutRemainingInBetaIfNeeded];
