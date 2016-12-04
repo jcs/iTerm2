@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0183A1161DF4747300F22B00 /* iTermTilingToast.h in Headers */ = {isa = PBXBuildFile; fileRef = 0183A1141DF4747300F22B00 /* iTermTilingToast.h */; };
+		0183A1171DF4747300F22B00 /* iTermTilingToast.m in Sources */ = {isa = PBXBuildFile; fileRef = 0183A1151DF4747300F22B00 /* iTermTilingToast.m */; };
 		01E994651DF12C0600FF4C23 /* iTermTilingManager.h in Headers */ = {isa = PBXBuildFile; fileRef = 01E994631DF12C0600FF4C23 /* iTermTilingManager.h */; };
 		01E994661DF12C0600FF4C23 /* iTermTilingManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 01E994641DF12C0600FF4C23 /* iTermTilingManager.m */; };
 		01E994691DF20AF500FF4C23 /* iTermTilingFrame.h in Headers */ = {isa = PBXBuildFile; fileRef = 01E994671DF20AF500FF4C23 /* iTermTilingFrame.h */; };
@@ -2304,6 +2306,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		0183A1141DF4747300F22B00 /* iTermTilingToast.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = iTermTilingToast.h; sourceTree = "<group>"; };
+		0183A1151DF4747300F22B00 /* iTermTilingToast.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = iTermTilingToast.m; sourceTree = "<group>"; };
 		01E994631DF12C0600FF4C23 /* iTermTilingManager.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = iTermTilingManager.h; sourceTree = "<group>"; };
 		01E994641DF12C0600FF4C23 /* iTermTilingManager.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = iTermTilingManager.m; sourceTree = "<group>"; };
 		01E994671DF20AF500FF4C23 /* iTermTilingFrame.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = iTermTilingFrame.h; sourceTree = "<group>"; };
@@ -3741,6 +3745,8 @@
 				01E994681DF20AF500FF4C23 /* iTermTilingFrame.m */,
 				01E994631DF12C0600FF4C23 /* iTermTilingManager.h */,
 				01E994641DF12C0600FF4C23 /* iTermTilingManager.m */,
+				0183A1141DF4747300F22B00 /* iTermTilingToast.h */,
+				0183A1151DF4747300F22B00 /* iTermTilingToast.m */,
 				01E9946B1DF20B6E00FF4C23 /* iTermTilingWindow.h */,
 				01E9946C1DF20B6E00FF4C23 /* iTermTilingWindow.m */,
 			);
@@ -5909,6 +5915,7 @@
 				A67F57D41B11882900B4F135 /* CapturedOutput.h in Headers */,
 				A693395C1851A61D00EBEA20 /* VT100ScreenMark.h in Headers */,
 				1D5FDD5D1208E8F000C46BA3 /* PSMRolloverButton.h in Headers */,
+				0183A1161DF4747300F22B00 /* iTermTilingToast.h in Headers */,
 				1D5FDD5E1208E8F000C46BA3 /* PSMTabBarCell.h in Headers */,
 				A6A2698818FF70C600437DA9 /* ProfilesWindowPreferencesViewController.h in Headers */,
 				A6E525DD1A9C5730007B898E /* VT100StateMachine.h in Headers */,
@@ -7641,6 +7648,7 @@
 				01E994661DF12C0600FF4C23 /* iTermTilingManager.m in Sources */,
 				A6E761651D39D216005C0E5C /* iTermMutableAttributedStringBuilder.m in Sources */,
 				1D1F8C1C1A32616A00167161 /* AMIndeterminateProgressIndicator.m in Sources */,
+				0183A1171DF4747300F22B00 /* iTermTilingToast.m in Sources */,
 				A6D22A431BC8BE6B004084E0 /* Model.xcdatamodeld in Sources */,
 				01E9946A1DF20AF500FF4C23 /* iTermTilingFrame.m in Sources */,
 				01E9946E1DF20B6E00FF4C23 /* iTermTilingWindow.m in Sources */,

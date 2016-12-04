@@ -8,7 +8,6 @@
 
 #import "iTermTilingFrame.h"
 
-/* iTermTilingFrameBorder */
 @implementation iTermTilingFrameBorder
 
 @synthesize borderWidth;
@@ -17,7 +16,7 @@
 
 - (void)drawRect:(NSRect)dirtyRect
 {
-        NSBezierPath *bpath = [NSBezierPath bezierPathWithRoundedRect:CGRectInset(self.bounds, self.borderWidth / 2, self.borderWidth / 2) xRadius:self.cornerRadius yRadius:self.cornerRadius];
+        NSBezierPath *bpath = [NSBezierPath bezierPathWithRoundedRect:CGRectInset(self.bounds, ceil(self.borderWidth / 2), ceil(self.borderWidth / 2)) xRadius:self.cornerRadius yRadius:self.cornerRadius];
         
         [self.borderColor set];
         [bpath setLineWidth:self.borderWidth];
@@ -26,7 +25,6 @@
 
 @end
 
-/* iTermTilingFrame containing multiple iTermTilingWindow objects */
 @implementation iTermTilingFrame
 
 @synthesize borderWindow;

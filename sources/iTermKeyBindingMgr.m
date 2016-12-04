@@ -555,7 +555,7 @@ exit:
             break;
 
         case KEY_ACTION_TILING_ACTION:
-            actionString = @"Tiling Window Manager Command";
+            actionString = @"Tiling Window Manager - Enter Action Mode";
             break;
         case KEY_ACTION_TILING_HSPLIT:
             actionString = @"Tiling WM Action Mode - Horizontal Split";
@@ -608,6 +608,10 @@ exit:
         case KEY_ACTION_TILING_SHOW_FRAMES:
             actionString = @"Tiling WM Action Mode - Show Frame Numbers";
             break;
+        case KEY_ACTION_TILING_SEND_ACTION_KEY:
+            actionString = @"Tiling WM Action Mode - Send Action Key";
+            break;
+            
         default:
             actionString = [NSString stringWithFormat: @"%@ %d", @"Unknown Action ID", action];
             break;
@@ -685,7 +689,7 @@ exit:
         }
         return -1;
     }
-
+    
     if(text != nil)
         *text = [theKeyMapping objectForKey: @"Text"];
 

@@ -193,7 +193,7 @@
                                             <menuItem title="Move End of Selection Back" tag="45" id="L33-q3-stz"/>
                                             <menuItem title="Move End of Selection Forward" tag="46" id="xRC-3K-RlB"/>
                                             <menuItem isSeparatorItem="YES" id="c8c-8I-caf"/>
-                                            <menuItem title="Tiling Window Manager Action" tag="57" id="RhP-Lx-fyE"/>
+                                            <menuItem title="Tiling Window Manager - Enter Action Mode" tag="57" id="RhP-Lx-fyE"/>
                                             <menuItem title="Tiling WM Action Mode - Horizontal Split" tag="58" id="pJS-Oe-Pun"/>
                                             <menuItem title="Tiling WM Action Mode - Vertical Split" tag="59" id="N0X-0Y-Km0"/>
                                             <menuItem title="Tiling WM Action Mode - Focus Split Left" tag="60" id="fYS-AX-MVv"/>
@@ -211,6 +211,7 @@
                                             <menuItem title="Tiling WM Action Mode - Remove Split" tag="70" id="fqt-gL-tQa"/>
                                             <menuItem title="Tiling WM Action Mode - New Window" tag="71" id="VuA-V4-mNJ"/>
                                             <menuItem title="Tiling WM Action Mode - Show Frame Numbers" tag="74" id="HgQ-2V-Ibm"/>
+                                            <menuItem title="Tiling WM Action Mode - Send Action Mode Key" tag="75" id="Vdt-pF-eEV"/>
                                             <menuItem isSeparatorItem="YES" id="Lym-RO-frp"/>
                                             <menuItem title="Select Menu Item..." tag="25" id="haJ-OE-peX"/>
                                         </items>

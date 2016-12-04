@@ -10,11 +10,13 @@
 #import "iTermTilingFrame.h"
 #import "iTermTilingWindow.h"
 #import "iTermKeyBindingMgr.h"
+#import "iTermTilingToast.h"
 #import "DebugLogging.h"
 
 /* iTermTilingManager containing multiple iTermTilingFrame objects */
 @implementation iTermTilingManager {
         BOOL adjustingFrames;
+        NSEvent *ignoreEvent;
 }
 
 + (instancetype)sharedInstance {
@@ -47,7 +49,7 @@
         
         /* TODO: get these from preferences */
         self.gap = 20;
-        self.borderWidth = 4;
+        self.borderWidth = 3;
         //self.cornerRadius = 10;
         self.activeFrameBorderColor = [NSColor orangeColor];
         self.inactiveFrameBorderColor = [NSColor grayColor];
@@ -133,6 +135,8 @@
                         [[self frames] insertObject:f atIndex:0];
                         
                         [f focusFrontWindow];
+                        
+                        [iTermTilingToast showToastWithMessage:@"Current Frame" inFrame:f];
 
                         break;
                 }
@@ -252,13 +256,9 @@
         return nil;
 }
 
-/* whether iTermKeyBindingMgr should downgrade a key action to just a regular keystroke */
 - (BOOL)downgradeKeyAction:(int)action
 {
-        if (self.actionMode)
-                return NO;
-        
-        return (action > KEY_ACTION_TILING_ACTION && action <= KEY_ACTION_TILING_LASTID);
+        return (action >= KEY_ACTION_TILING_ACTION && action <= KEY_ACTION_TILING_LASTID);
 }
 
 - (BOOL)handleKeyEvent:(NSEvent *)event
@@ -266,24 +266,42 @@
         NSString *unmodkeystr = [event charactersIgnoringModifiers];
         unichar unmodunicode = [unmodkeystr length] > 0 ? [unmodkeystr characterAtIndex:0] : 0;
         unsigned int modflag = [event modifierFlags];
+        NSDictionary *keyMapping;
+
+        NSString *keyString = [iTermKeyBindingMgr identifierForCharacterIgnoringModifiers:unmodunicode modifiers:modflag];
+        keyMapping = [[iTermKeyBindingMgr globalKeyMap] objectForKey:keyString];
+        if (keyMapping == nil)
+                return NO;
         
-        int action = [iTermKeyBindingMgr actionForKeyCode:unmodunicode
-                                                modifiers:modflag
-                                                     text:nil
-                                              keyMappings:[iTermKeyBindingMgr globalKeyMap]];
+        int action = [[keyMapping objectForKey: @"Action"] intValue];
+        
+        if (ignoreEvent && [event isEqualTo:ignoreEvent]) {
+                NSLog(@"[TilingManager] found event to ignore, passing through");
+                ignoreEvent = nil;
+                return NO;
+        }
 
         if (!self.actionMode) {
                 if (action == KEY_ACTION_TILING_ACTION) {
                         NSLog(@"[TilingManager] enabling action mode");
                         self.actionMode = YES;
                         [[NSCursor contextualMenuCursor] push];
+                        
+                        [iTermTilingToast hideAllToasts];
+
                         return YES;
                 }
                 
                 return NO;
         }
         
+        BOOL ret = YES;
+        
         switch (action) {
+        case KEY_ACTION_TILING_ACTION:
+                NSLog(@"[TilingManager] action key pressed in action mode");
+                ret = NO;
+                break;
         case KEY_ACTION_TILING_HSPLIT:
         {
                 /* split the current frame into two, left and right */
@@ -331,16 +349,36 @@
                 break;
         }
         case KEY_ACTION_TILING_FOCUS_NEXT:
-        {
                 NSLog(@"[TilingManager] focus next");
                 if ([[self frames] count] > 1) {
                         [self setCurrentFrame:[[self frames] objectAtIndex:1]];
                 }
                 break;
-        }
         case KEY_ACTION_TILING_FOCUS_PREV:
                 NSLog(@"[TilingManager] focus previous");
+                if ([[self frames] count] > 2) {
+                        [self setCurrentFrame:[[self frames] objectAtIndex:2]];
+                } else {
+                        [self setCurrentFrame:[[self frames] objectAtIndex:1]];
+                }
                 break;
+        case KEY_ACTION_TILING_SHOW_FRAMES:
+                NSLog(@"[TilingManager] show frames");
+                [self showFrameNumbers];
+                break;
+        case KEY_ACTION_TILING_REMOVE:
+                NSLog(@"[TilingManager] remove");
+                [self removeCurrentFrame];
+                break;
+        case KEY_ACTION_TILING_NEW_WINDOW:
+                NSLog(@"[TilingManager] new window");
+                [[iTermController sharedInstance] launchBookmark:[[ProfileModel sharedInstance] defaultBookmark] inTerminal:nil];
+                break;
+        case KEY_ACTION_TILING_SEND_ACTION_KEY:
+                NSLog(@"[TilingManager] send action key");
+                [self sendActionKey:event];
+                break;
+                        
         case KEY_ACTION_TILING_SWAP_LEFT:
                 NSLog(@"[TilingManager] swap left");
                 break;
@@ -359,20 +397,7 @@
         case KEY_ACTION_TILING_CYCLE_PREV:
                 NSLog(@"[TilingManager] cycle prev window");
                 break;
-        case KEY_ACTION_TILING_SHOW_FRAMES:
-                NSLog(@"[TilingManager] show frames");
-                [self showFrameNumbers];
-                break;
-        case KEY_ACTION_TILING_REMOVE:
-        {
-                NSLog(@"[TilingManager] remove");
-                [self removeCurrentFrame];
-                break;
-        }
-        case KEY_ACTION_TILING_NEW_WINDOW:
-                NSLog(@"[TilingManager] new window");
-                [[iTermController sharedInstance] launchBookmark:[[ProfileModel sharedInstance] defaultBookmark] inTerminal:nil];
-                break;
+
         default:
                 NSLog(@"[TilingManager] other key pressed while in action mode: %d", action);
         }
@@ -380,7 +405,23 @@
         self.actionMode = NO;
         [NSCursor pop];
 
-        return YES;
+        return ret;
+}
+
+- (void)sendActionKey:(NSEvent *)event
+{
+        ignoreEvent = [NSEvent keyEventWithType:NSKeyDown
+                                                 location:NSMakePoint(1, 1)
+                                            modifierFlags:NSControlKeyMask
+                                                timestamp:[NSDate timeIntervalSinceReferenceDate]
+                                             windowNumber:0
+                                                  context:[NSGraphicsContext currentContext]
+                                               characters:@"a"
+                              charactersIgnoringModifiers:@"a"
+                                                isARepeat:NO
+                                                  keyCode:0];
+        
+        [[NSApplication sharedApplication] sendEvent:ignoreEvent];
 }
 
 - (void)horizontallySplitCurrentFrame
@@ -555,6 +596,13 @@
                 return;
         
         self.showingFrameNumbers = YES;
+        [NSTimer scheduledTimerWithTimeInterval:2 target:self selector:@selector(hideFrameNumbers) userInfo:nil repeats:NO];
+        [self redrawFrames];
+}
+
+- (void)hideFrameNumbers
+{
+        self.showingFrameNumbers = NO;
         [self redrawFrames];
 }
 

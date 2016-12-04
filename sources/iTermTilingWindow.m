@@ -8,7 +8,6 @@
 
 #import "iTermTilingWindow.h"
 
-/* iTermTilingWindow */
 @implementation iTermTilingWindow
 
 @synthesize terminal;
@@ -82,7 +81,7 @@
 
 - (void)focus
 {
-        [[[self terminal] window] makeKeyWindow];
+        [[[self terminal] window] makeKeyAndOrderFront:nil];
 }
 
 - (void)unfocus
