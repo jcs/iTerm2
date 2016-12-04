@@ -3734,6 +3734,19 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		01E9946F1DF2358500FF4C23 /* Tiling Window Manager */ = {
+			isa = PBXGroup;
+			children = (
+				01E994671DF20AF500FF4C23 /* iTermTilingFrame.h */,
+				01E994681DF20AF500FF4C23 /* iTermTilingFrame.m */,
+				01E994631DF12C0600FF4C23 /* iTermTilingManager.h */,
+				01E994641DF12C0600FF4C23 /* iTermTilingManager.m */,
+				01E9946B1DF20B6E00FF4C23 /* iTermTilingWindow.h */,
+				01E9946C1DF20B6E00FF4C23 /* iTermTilingWindow.m */,
+			);
+			name = "Tiling Window Manager";
+			sourceTree = "<group>";
+		};
 		0464AB0D006CD2EC7F000001 /* JTerminal */ = {
 			isa = PBXGroup;
 			children = (
@@ -3773,6 +3786,7 @@
 				1D06E7D014BC04110097C0ED /* Profiles */,
 				A6A2698C18FF85E600437DA9 /* Shell Integration */,
 				A67F57C31B0930AD00B4F135 /* Shell Launcher/FD Client/Server */,
+				01E9946F1DF2358500FF4C23 /* Tiling Window Manager */,
 				1D3D21921483142800FAC8E7 /* tmux */,
 				1D9DDE2E142E733100275650 /* Toolbelt */,
 				1D9DDE2D142E730700275650 /* Triggers */,
@@ -5207,12 +5221,6 @@
 				A6FC49851C3A31840061B3BA /* iTermSystemVersion.m */,
 				A6FCB6081C6714230019184E /* iTermFullScreenWindowManager.h */,
 				A6FCB6091C6714230019184E /* iTermFullScreenWindowManager.m */,
-				01E994671DF20AF500FF4C23 /* iTermTilingFrame.h */,
-				01E994681DF20AF500FF4C23 /* iTermTilingFrame.m */,
-				01E994631DF12C0600FF4C23 /* iTermTilingManager.h */,
-				01E994641DF12C0600FF4C23 /* iTermTilingManager.m */,
-				01E9946B1DF20B6E00FF4C23 /* iTermTilingWindow.h */,
-				01E9946C1DF20B6E00FF4C23 /* iTermTilingWindow.m */,
 				A6FCB60C1C6714C70019184E /* iTermWeakReference.h */,
 				A6FCB60D1C6714C70019184E /* iTermWeakReference.m */,
 				A6EEA6661C83B95C00FA1594 /* iTermAutomaticProfileSwitcher.h */,

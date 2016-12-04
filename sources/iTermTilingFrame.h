@@ -24,6 +24,7 @@
 
 @property (retain) iTermTilingManager *manager;
 @property (retain) NSWindow *borderWindow;
+@property (retain) NSTextView *numberLabel;
 @property (retain) iTermTilingFrameBorder *border;
 @property (assign, nonatomic) CGRect rect;
 @property (retain) NSMutableArray<iTermTilingWindow *> *windows;
@@ -31,9 +32,9 @@
 - (id)initWithRect:(CGRect)_rect andManager:(iTermTilingManager *)_manager;
 - (void)addWindow:(iTermTilingWindow *)window;
 - (void)removeWindow:(iTermTilingWindow *)window;
-- (CGRect)rectForWindow;
-- (void)horizontalSplit;
-- (void)verticalSplit;
+- (void)unfocusFrontWindow;
+- (void)focusFrontWindow;
+- (CGRect)rectForWindowInsetBorder:(BOOL)inset;
 - (void)redraw;
 
 @end

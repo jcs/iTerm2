@@ -22,10 +22,21 @@
         self.terminal = (PseudoTerminal<iTermWeakReference> *)_terminal;
         
         [[NSNotificationCenter defaultCenter] addObserver:self
-                                                 selector:@selector(resizeNotification:)
+                                                 selector:@selector(resizeOrMoveNotification:)
                                                      name:NSWindowDidResizeNotification
                                                    object:[_terminal window]];
-
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(resizeOrMoveNotification:)
+                                                     name:NSWindowDidMoveNotification
+                                                   object:[_terminal window]];
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(lostFocus:)
+                                                     name:NSWindowDidResignKeyNotification
+                                                   object:[_terminal window]];
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(gainedFocus:)
+                                                     name:NSWindowDidBecomeKeyNotification
+                                                   object:[_terminal window]];
         return self;
 }
 
@@ -42,13 +53,41 @@
 
 - (void)adjustToFrame
 {
-        [[[self terminal] window] setFrame:[[self frame] rectForWindow] display:YES];
+        [[[self terminal] window] setFrame:[[self frame] rectForWindowInsetBorder:YES] display:YES];
 }
 
-- (void)resizeNotification:(NSNotification *)notification
+- (void)resizeOrMoveNotification:(NSNotification *)notification
 {
-        NSLog(@"[TilingManager] window resized: %@, keeping in frame %@", [self terminal], NSStringFromRect([[self frame] rectForWindow]));
-        [self adjustToFrame];
+        [[self frame] redraw];
+}
+
+- (void)lostFocus:(NSNotification *)notification
+{
+        self.focused = NO;
+        //[[self frame] redraw];
+}
+
+- (void)gainedFocus:(NSNotification *)notification
+{
+        self.focused = YES;
+        
+#if 0   /* XXX: this swaps frames when the last terminal in a frame exits, which is not desired */
+        if (![[[[self frame] manager] currentFrame] isEqualTo:[self frame]]) {
+                [[[self frame] manager] setCurrentFrame:[self frame]];
+        }
+#endif
+        
+        //[[self frame] redraw];
+}
+
+- (void)focus
+{
+        [[[self terminal] window] makeKeyWindow];
+}
+
+- (void)unfocus
+{
+        [[[self terminal] window] resignKeyWindow];
 }
 
 @end

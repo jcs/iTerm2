@@ -24,12 +24,15 @@ typedef NS_ENUM(NSInteger, iTermTilingFrameDirection) {
 @property BOOL actionMode;
 @property (assign) NSMutableArray<iTermTilingFrame *> *frames;
 @property (assign) NSColor *activeFrameBorderColor;
+@property (assign) NSColor *inactiveFrameBorderColor;
 @property int borderWidth;
 @property int cornerRadius;
 @property int gap;
+@property BOOL showingFrameNumbers;
 
 + (instancetype)sharedInstance;
 - (iTermTilingFrame *)currentFrame;
+- (void)setCurrentFrame:(iTermTilingFrame *)newCur;
 - (BOOL)downgradeKeyAction:(int)action;
 - (BOOL)handleKeyEvent:(NSEvent *)event;
 

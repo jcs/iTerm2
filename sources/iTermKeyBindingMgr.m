@@ -564,22 +564,22 @@ exit:
             actionString = @"Tiling WM Action Mode - Vertical Split";
             break;
         case KEY_ACTION_TILING_FOCUS_LEFT:
-            actionString = @"Tiling WM Action Mode - Focus Left";
+            actionString = @"Tiling WM Action Mode - Focus Split Left";
             break;
         case KEY_ACTION_TILING_FOCUS_RIGHT:
-            actionString = @"Tiling WM Action Mode - Focus Right";
+            actionString = @"Tiling WM Action Mode - Focus Split Right";
             break;
         case KEY_ACTION_TILING_FOCUS_UP:
-            actionString = @"Tiling WM Action Mode - Focus Up";
+            actionString = @"Tiling WM Action Mode - Focus Split Above";
             break;
         case KEY_ACTION_TILING_FOCUS_DOWN:
-            actionString = @"Tiling WM Action Mode - Focus Down";
+            actionString = @"Tiling WM Action Mode - Focus Split Below";
             break;
         case KEY_ACTION_TILING_FOCUS_NEXT:
-            actionString = @"Tiling WM Action Mode - Focus Next";
+            actionString = @"Tiling WM Action Mode - Focus Next Split";
             break;
         case KEY_ACTION_TILING_FOCUS_PREV:
-            actionString = @"Tiling WM Action Mode - Focus Previous";
+            actionString = @"Tiling WM Action Mode - Focus Previous Split";
             break;
         case KEY_ACTION_TILING_SWAP_LEFT:
             actionString = @"Tiling WM Action Mode - Swap with Left";
@@ -596,7 +596,18 @@ exit:
         case KEY_ACTION_TILING_REMOVE:
             actionString = @"Tiling WM Action Mode - Remove Split";
             break;
-
+        case KEY_ACTION_TILING_NEW_WINDOW:
+            actionString = @"Tiling WM Action Mode - New Window";
+            break;
+        case KEY_ACTION_TILING_CYCLE_NEXT:
+            actionString = @"Tiling WM Action Mode - Cycle Next Window";
+            break;
+        case KEY_ACTION_TILING_CYCLE_PREV:
+            actionString = @"Tiling WM Action Mode - Cycle Previous Window";
+            break;
+        case KEY_ACTION_TILING_SHOW_FRAMES:
+            actionString = @"Tiling WM Action Mode - Show Frame Numbers";
+            break;
         default:
             actionString = [NSString stringWithFormat: @"%@ %d", @"Unknown Action ID", action];
             break;

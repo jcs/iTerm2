@@ -17,7 +17,10 @@
 
 @property (nonatomic, retain) PseudoTerminal<iTermWeakReference> *terminal;
 @property (nonatomic, retain) iTermTilingFrame *frame;
+@property BOOL focused;
 - (id)initForTerminal:(PseudoTerminal *)terminal;
 - (void)adjustToFrame;
+- (void)focus;
+- (void)unfocus;
 
 @end
