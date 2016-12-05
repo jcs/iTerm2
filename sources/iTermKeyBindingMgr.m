@@ -575,11 +575,8 @@ exit:
         case KEY_ACTION_TILING_FOCUS_DOWN:
             actionString = @"Tiling WM Action Mode - Focus Split Below";
             break;
-        case KEY_ACTION_TILING_FOCUS_NEXT:
-            actionString = @"Tiling WM Action Mode - Focus Next Split";
-            break;
-        case KEY_ACTION_TILING_FOCUS_PREV:
-            actionString = @"Tiling WM Action Mode - Focus Previous Split";
+        case KEY_ACTION_TILING_FOCUS_LAST:
+            actionString = @"Tiling WM Action Mode - Focus Last Split";
             break;
         case KEY_ACTION_TILING_SWAP_LEFT:
             actionString = @"Tiling WM Action Mode - Swap with Left";

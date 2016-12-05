@@ -41,8 +41,8 @@ static NSMutableArray *visibleToast;
         [textField sizeToFit];
         
         RoundedRectView *roundedRect = [[[RoundedRectView alloc] init] autorelease];
-        const int hPadding = 20;
-        const int vPadding = 10;
+        const int hPadding = 10;
+        const int vPadding = 7;
         [roundedRect setFrame:NSMakeRect(0,
                                          0,
                                          textField.frame.size.width + hPadding * 2,

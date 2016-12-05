@@ -26,7 +26,6 @@ typedef NS_ENUM(NSInteger, iTermTilingFrameDirection) {
 @property (assign) NSColor *activeFrameBorderColor;
 @property (assign) NSColor *inactiveFrameBorderColor;
 @property int borderWidth;
-@property int cornerRadius;
 @property int gap;
 @property BOOL showingFrameNumbers;
 

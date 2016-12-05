@@ -14,18 +14,9 @@
 @class iTermTilingWindow;
 @class iTermTilingManager;
 
-@interface iTermTilingFrameBorder : NSView
-@property (assign) int borderWidth;
-@property (assign) int cornerRadius;
-@property (retain) NSColor *borderColor;
-@end
-
 @interface iTermTilingFrame : NSObject
 
 @property (retain) iTermTilingManager *manager;
-@property (retain) NSWindow *borderWindow;
-@property (retain) NSTextView *numberLabel;
-@property (retain) iTermTilingFrameBorder *border;
 @property (assign, nonatomic) CGRect rect;
 @property (retain) NSMutableArray<iTermTilingWindow *> *windows;
 
@@ -34,7 +25,8 @@
 - (void)removeWindow:(iTermTilingWindow *)window;
 - (void)unfocusFrontWindow;
 - (void)focusFrontWindow;
-- (CGRect)rectForWindowInsetBorder:(BOOL)inset;
+- (void)cycleWindowsForward:(BOOL)forward;
+- (CGRect)rectForWindow;
 - (void)redraw;
 
 @end

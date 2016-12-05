@@ -11,6 +11,7 @@
 #import "iTermTilingWindow.h"
 #import "iTermKeyBindingMgr.h"
 #import "iTermTilingToast.h"
+#import "NSScreen+iTerm.h"
 #import "DebugLogging.h"
 
 /* iTermTilingManager containing multiple iTermTilingFrame objects */
@@ -48,19 +49,14 @@
         adjustingFrames = NO;
         
         /* TODO: get these from preferences */
-        self.gap = 20;
-        self.borderWidth = 3;
-        //self.cornerRadius = 10;
+        self.gap = 12;
+        self.borderWidth = 8;
         self.activeFrameBorderColor = [NSColor orangeColor];
         self.inactiveFrameBorderColor = [NSColor grayColor];
 
         /* create one frame taking up the screen */
         NSScreen *screen = [NSScreen mainScreen];
-        CGRect initFrame = CGRectMake(screen.visibleFrame.origin.x, screen.visibleFrame.origin.y, screen.visibleFrame.size.width, screen.visibleFrame.size.height);
-        
-        NSLog(@"[TilingManager] setting initial frame to %@", NSStringFromRect(initFrame));
-
-        iTermTilingFrame *frame = [[iTermTilingFrame alloc] initWithRect:initFrame andManager:self];
+        iTermTilingFrame *frame = [[iTermTilingFrame alloc] initWithRect:screen.visibleFrameIgnoringHiddenDock andManager:self];
         self.frames = [[NSMutableArray alloc] initWithObjects:frame, nil];
 
         [[NSNotificationCenter defaultCenter] addObserver:self
@@ -87,6 +83,7 @@
 {
         [self redrawFrames];
         adjustingFrames = NO;
+        [self dumpFrames];
 }
 
 - (void)dealloc
@@ -123,9 +120,8 @@
         if (![self startAdjustingFrames])
                 return;
         
-        if ([self currentFrame])
-                [[self currentFrame] unfocusFrontWindow];
-                
+        [[self currentFrame] unfocusFrontWindow];
+        
         for (int i = 0; i < [self.frames count]; i++) {
                 iTermTilingFrame *f = [self.frames objectAtIndex:i];
                 
@@ -213,11 +209,6 @@
         if (which == nil)
                 which = [self currentFrame];
         
-        if (which == nil)
-                return nil;
-        
-        NSLog(@"[TilingManager] trying to find frame %@ of %@", [self directionString:direction], which);
-        
         NSMutableArray *matches = [[NSMutableArray alloc] init];
         for (int i = 0; i < [[self frames] count]; i++) {
                 iTermTilingFrame *tf = [[self frames] objectAtIndex:i];
@@ -276,7 +267,6 @@
         int action = [[keyMapping objectForKey: @"Action"] intValue];
         
         if (ignoreEvent && [event isEqualTo:ignoreEvent]) {
-                NSLog(@"[TilingManager] found event to ignore, passing through");
                 ignoreEvent = nil;
                 return NO;
         }
@@ -348,17 +338,9 @@
                         [self setCurrentFrame:swap];
                 break;
         }
-        case KEY_ACTION_TILING_FOCUS_NEXT:
-                NSLog(@"[TilingManager] focus next");
+        case KEY_ACTION_TILING_FOCUS_LAST:
+                NSLog(@"[TilingManager] focus last");
                 if ([[self frames] count] > 1) {
-                        [self setCurrentFrame:[[self frames] objectAtIndex:1]];
-                }
-                break;
-        case KEY_ACTION_TILING_FOCUS_PREV:
-                NSLog(@"[TilingManager] focus previous");
-                if ([[self frames] count] > 2) {
-                        [self setCurrentFrame:[[self frames] objectAtIndex:2]];
-                } else {
                         [self setCurrentFrame:[[self frames] objectAtIndex:1]];
                 }
                 break;
@@ -378,7 +360,15 @@
                 NSLog(@"[TilingManager] send action key");
                 [self sendActionKey:event];
                 break;
-                        
+        case KEY_ACTION_TILING_CYCLE_NEXT:
+                NSLog(@"[TilingManager] cycle next window");
+                [[self currentFrame] cycleWindowsForward:YES];
+                break;
+        case KEY_ACTION_TILING_CYCLE_PREV:
+                NSLog(@"[TilingManager] cycle prev window");
+                [[self currentFrame] cycleWindowsForward:NO];
+                break;
+
         case KEY_ACTION_TILING_SWAP_LEFT:
                 NSLog(@"[TilingManager] swap left");
                 break;
@@ -390,12 +380,6 @@
                 break;
         case KEY_ACTION_TILING_SWAP_DOWN:
                 NSLog(@"[TilingManager] swap down");
-                break;
-        case KEY_ACTION_TILING_CYCLE_NEXT:
-                NSLog(@"[TilingManager] cycle next window");
-                break;
-        case KEY_ACTION_TILING_CYCLE_PREV:
-                NSLog(@"[TilingManager] cycle prev window");
                 break;
 
         default:
@@ -410,6 +394,8 @@
 
 - (void)sendActionKey:(NSEvent *)event
 {
+        /* TODO: actually find first key bound to KEY_ACTION_TILING_ACTION and send it, rather than hard-coded control+a */
+        
         ignoreEvent = [NSEvent keyEventWithType:NSKeyDown
                                                  location:NSMakePoint(1, 1)
                                             modifierFlags:NSControlKeyMask
@@ -428,12 +414,10 @@
 {
         /* split the current frame into two, left and right (becoming left position) */
         
-        iTermTilingFrame *cur = [self currentFrame];
-        if (!cur)
-                return;
-        
         if (![self startAdjustingFrames])
                 return;
+        
+        iTermTilingFrame *cur = [self currentFrame];
 
         NSRect oldRect = [cur rect];
         NSRect newCurRect = NSMakeRect(oldRect.origin.x, oldRect.origin.y, floor(oldRect.size.width / 2), oldRect.size.height);
@@ -451,13 +435,11 @@
 {
         /* split the current frame into two, top and bottom (becoming top position) */
         
-        iTermTilingFrame *cur = [self currentFrame];
-        if (!cur)
-                return;
-
         if (![self startAdjustingFrames])
                 return;
-
+        
+        iTermTilingFrame *cur = [self currentFrame];
+        
         NSRect oldRect = [cur rect];
         NSRect newCurRect = NSMakeRect(oldRect.origin.x, oldRect.origin.y + (oldRect.size.height / 2), oldRect.size.width, oldRect.size.height / 2);
         NSRect newNewRect = NSMakeRect(newCurRect.origin.x, oldRect.origin.y, oldRect.size.width, oldRect.size.height - newCurRect.size.height);
@@ -472,11 +454,13 @@
 
 - (void)removeCurrentFrame
 {
-        if ([[self frames] count] <= 1)
-                return;
-        
         if (![self startAdjustingFrames])
                 return;
+
+        if ([[self frames] count] <= 1) {
+                [iTermTilingToast showToastWithMessage:@"Cannot remove last frame" inFrame:[self currentFrame]];
+                return;
+        }
 
         iTermTilingFrame *cur = [self currentFrame];
         iTermTilingFrame *dst = [[self frames] objectAtIndex:1];
@@ -488,8 +472,6 @@
                 [[dst windows] addObject:tw];
         }
         [[cur windows] removeAllObjects];
-        [[cur border] removeFromSuperview];
-        [[cur numberLabel] removeFromSuperview];
         
         [[self frames] removeObjectAtIndex:0];
         
@@ -504,8 +486,8 @@
         NSScreen *screen = [NSScreen mainScreen];
         for (int i = 0; i < [[self frames] count]; i++) {
                 iTermTilingFrame *tf = [[self frames] objectAtIndex:i];
-                if (tf.rect.origin.x + tf.rect.size.width > screen.visibleFrame.size.width) {
-                        NSLog(@"[TilingManager] frame is wider than screen (%@): %@", NSStringFromRect(screen.visibleFrame), tf);
+                if (tf.rect.origin.x + tf.rect.size.width > screen.visibleFrameIgnoringHiddenDock.size.width) {
+                        NSLog(@"[TilingManager] frame is wider than screen (%@): %@", NSStringFromRect(screen.visibleFrameIgnoringHiddenDock), tf);
                         
                         /* TODO */
                 }
@@ -517,7 +499,7 @@
                 CGRect newRect = tf.rect;
                 
                 /* find any frames to the right of us that will prevent us from taking the remaining screen width */
-                CGFloat newWidth = screen.visibleFrame.size.width - newRect.origin.x;
+                CGFloat newWidth = screen.visibleFrameIgnoringHiddenDock.size.width - newRect.origin.x;
                 for (int j = 0; j < [[self frames] count]; j++) {
                         if (j == i)
                                 continue;
@@ -570,7 +552,7 @@
                 newRect.origin.x = newLeft;
                 
                 /* find any frames above us that will prevent us from taking the remaining screen height */
-                CGFloat newTop = screen.visibleFrame.size.height;
+                CGFloat newTop = screen.visibleFrameIgnoringHiddenDock.size.height;
                 for (int j = 0; j < [[self frames] count]; j++) {
                         if (j == i)
                                 continue;

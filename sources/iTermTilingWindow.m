@@ -8,10 +8,35 @@
 
 #import "iTermTilingWindow.h"
 
+@implementation iTermTilingWindowBorder
+
+@synthesize window;
+@synthesize borderWidth;
+@synthesize borderColor;
+
+- (id)initWithFrame:(CGRect)frame forTilingWindow:(iTermTilingWindow *)tilingWindow_
+{
+        self = [super initWithFrame:frame];
+        self.tilingWindow = tilingWindow_;
+        
+        return self;
+}
+
+- (void)drawRect:(NSRect)dirtyRect
+{
+        NSBezierPath *bpath = [NSBezierPath bezierPathWithRect:self.bounds];
+        [self.borderColor set];
+        [bpath setLineWidth:self.borderWidth];
+        [bpath stroke];
+}
+
+@end
+
 @implementation iTermTilingWindow
 
 @synthesize terminal;
 @synthesize frame;
+@synthesize border;
 
 - (id)initForTerminal:(PseudoTerminal *)_terminal
 {
@@ -36,6 +61,12 @@
                                                  selector:@selector(gainedFocus:)
                                                      name:NSWindowDidBecomeKeyNotification
                                                    object:[_terminal window]];
+        
+        self.border = [[iTermTilingWindowBorder alloc] initWithFrame:NSMakeRect(0, 0, terminal.windowFrame.size.width, terminal.windowFrame.size.height) forTilingWindow:self];
+        self.border.borderWidth = 5;
+        self.border.borderColor = [NSColor greenColor];
+        [[[[self terminal] window] contentView] addSubview:self.border];
+
         return self;
 }
 
@@ -52,7 +83,19 @@
 
 - (void)adjustToFrame
 {
-        [[[self terminal] window] setFrame:[[self frame] rectForWindowInsetBorder:YES] display:YES];
+        [[[self terminal] window] setFrame:[[self frame] rectForWindow] display:YES];
+        
+        if ([[[self frame] windows] count] > 0) {
+                if ([[[[self frame] manager] currentFrame] isEqualTo:self.frame])
+                        [[self border] setBorderColor:[[[self frame] manager] activeFrameBorderColor]];
+                else
+                        [[self border] setBorderColor:[[[self frame] manager] inactiveFrameBorderColor]];
+        } else
+                [[self border] setBorderColor:[NSColor clearColor]];
+        
+        [[self border] setBorderWidth:[self.frame.manager borderWidth]];
+        [[self border] setFrame:NSMakeRect(0, 0, terminal.windowFrame.size.width, terminal.windowFrame.size.height)];
+        [[self border] setNeedsDisplay:YES];
 }
 
 - (void)resizeOrMoveNotification:(NSNotification *)notification
