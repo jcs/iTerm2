@@ -359,7 +359,7 @@ exit:
         NSDictionary *keyInfo = [map objectForKey:key];
         
         int action = [[keyInfo objectForKey: @"Action"] intValue];
-        if (action == KEY_ACTION_ENTER_ACTION_MODE) {
+        if (action == KEY_ACTION_ENTER_ACTION_MODE && ![key containsString:@"-actionMode"]) {
             return key;
         }
     }
