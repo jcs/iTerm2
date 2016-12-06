@@ -5075,10 +5075,9 @@ ITERM_WEAKLY_REFERENCEABLE
             [iTermKeyBindingMgr setInActionMode:YES];
             // Leave early
             return;
-        case KEY_ACTION_SEND_ACTION_MODE_KEY: {
+        case KEY_ACTION_SEND_ACTION_MODE_KEY:
             [self sendActionModeKeyCombination];
             break;
-        }
         default:
             ELog(@"Unknown key action %d", keyBindingAction);
             break;
