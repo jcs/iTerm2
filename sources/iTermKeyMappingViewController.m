@@ -221,11 +221,14 @@ static NSString *const iTermTouchBarIDPrefix = @"touchbar:";
     if (isTouchBarItem) {
         editActionWindowController.touchBarItemID = selectedKey;
     } else {
+        if ([selectedKey containsString:@"-actionMode"]) {
+            editActionWindowController.inActionMode = YES;
+            selectedKey = [selectedKey stringByReplacingOccurrencesOfString:@"-actionMode" withString:@""];
+        }
         editActionWindowController.currentKeyCombination = selectedKey;
     }
     editActionWindowController.parameterValue = dict[selectedKey][@"Text"];
     editActionWindowController.action = [dict[selectedKey][@"Action"] intValue];
-    editActionWindowController.inActionMode = dict[selectedKey][@"ActionMode"] && [dict[selectedKey][@"ActionMode"] boolValue];
     [self presentEditActionSheet:editActionWindowController];
 }
 
