@@ -912,8 +912,6 @@ exit:
     [keyBinding setObject:[NSNumber numberWithInt:actionIndex]
                    forKey:@"Action"];
     [keyBinding setObject:[[valueToSend copy] autorelease] forKey:@"Text"];
-    if (actionMode)
-        [keyBinding setObject:[NSNumber numberWithBool:actionMode] forKey:@"ActionMode"];
     if (origKeyCombo) {
         [km removeObjectForKey:origKeyCombo];
     }
