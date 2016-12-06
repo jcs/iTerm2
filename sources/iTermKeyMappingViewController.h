@@ -26,6 +26,7 @@
           toAction:(int)action
          parameter:(NSString *)parameter
              label:(NSString *)label
+      inActionMode:(BOOL)actionMode
         isAddition:(BOOL)addition;
 
 - (void)keyMapping:(iTermKeyMappingViewController *)viewController

@@ -161,6 +161,14 @@
                 return;
             }
         }
+        
+        // If we're in action mode and there is no action for this key, cancel action mode and ignore the key
+        if ([iTermKeyBindingMgr inActionMode] && ![iTermKeyBindingMgr actionModeShouldIgnoreNextCommand]) {
+            if ([iTermKeyBindingMgr actionForKeyCode:([[event charactersIgnoringModifiers] length] > 0 ? [[event charactersIgnoringModifiers] characterAtIndex:0] : 0) modifiers:[event modifierFlags] text:nil keyMappings:[iTermKeyBindingMgr globalKeyMap]] == -1) {
+                [iTermKeyBindingMgr setInActionMode:NO];
+                return;
+            }
+        }
 
         if ([[self keyWindow] isTerminalWindow]) {
             // Focus is in a terminal window.

@@ -8,6 +8,7 @@
     <objects>
         <customObject id="-2" userLabel="File's Owner" customClass="iTermEditKeyActionWindowController">
             <connections>
+                <outlet property="_actionMode" destination="H9D-dM-Mdm" id="7di-fg-rIN"/>
                 <outlet property="_actionPopup" destination="GMz-jA-Nhg" id="FTh-b5-yVm"/>
                 <outlet property="_colorPresetsLabel" destination="TtY-N0-xlA" id="WGZ-eQ-7DP"/>
                 <outlet property="_colorPresetsPopup" destination="tld-gp-ZWP" id="pmR-N0-sjS"/>
@@ -199,6 +200,9 @@
                                             <menuItem title="Move End of Selection Back" tag="45" id="L33-q3-stz"/>
                                             <menuItem title="Move End of Selection Forward" tag="46" id="xRC-3K-RlB"/>
                                             <menuItem isSeparatorItem="YES" id="c8c-8I-caf"/>
+                                            <menuItem title="Enter Key Action Mode" tag="59" id="QBv-Nq-mno"/>
+                                            <menuItem title="Send &quot;Enter Key Action Mode&quot; Key" tag="60" id="HQ9-93-V26"/>
+                                            <menuItem isSeparatorItem="YES" id="iIf-RT-3No"/>
                                             <menuItem title="Select Menu Item..." tag="25" id="haJ-OE-peX"/>
                                         </items>
                                     </menu>
@@ -246,8 +250,8 @@ Gw
                                     <color key="backgroundColor" name="controlColor" catalog="System" colorSpace="catalog"/>
                                 </textFieldCell>
                             </textField>
-                            <textField verticalHuggingPriority="750" id="OcE-sI-T64" userLabel="Shortcut Text Field" customClass="iTermShortcutInputView">
-                                <rect key="frame" x="149" y="119" width="273" height="22"/>
+                            <textField verticalHuggingPriority="750" misplaced="YES" id="OcE-sI-T64" userLabel="Shortcut Text Field" customClass="iTermShortcutInputView">
+                                <rect key="frame" x="149" y="119" width="144" height="22"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" editable="YES" sendsActionOnEndEditing="YES" state="on" borderStyle="bezel" drawsBackground="YES" id="lcf-pM-rft">
                                     <font key="font" metaFont="system"/>
@@ -260,7 +264,7 @@ Gw
                                 </connections>
                             </textField>
                             <textField verticalHuggingPriority="750" misplaced="YES" id="oHw-49-aB1" userLabel="Touch Bar Label">
-                                <rect key="frame" x="150" y="119" width="273" height="22"/>
+                                <rect key="frame" x="150" y="119" width="143" height="22"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" editable="YES" sendsActionOnEndEditing="YES" state="on" borderStyle="bezel" alignment="left" placeholderString="Label to show in Touch Bar" drawsBackground="YES" id="mYT-YJ-w7Z">
                                     <font key="font" metaFont="system"/>
@@ -356,6 +360,14 @@ Gw
                                 <rect key="frame" x="20" y="-164" width="444" height="248"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                             </customView>
+                            <button misplaced="YES" id="H9D-dM-Mdm">
+                                <rect key="frame" x="299" y="121" width="113" height="18"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <buttonCell key="cell" type="check" title="In Action Mode" bezelStyle="regularSquare" imagePosition="left" state="on" inset="2" id="dZf-GM-LzG">
+                                    <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
+                                    <font key="font" metaFont="system"/>
+                                </buttonCell>
+                            </button>
                         </subviews>
                     </view>
                 </subviews>

@@ -2390,6 +2390,13 @@ ITERM_WEAKLY_REFERENCEABLE
                                                        text:&keyBindingText
                                                 keyMappings:[iTermKeyBindingMgr globalKeyMap]];
 
+    if (keyBindingAction == KEY_ACTION_ENTER_ACTION_MODE) {
+        DLog(@"Entering key action mode");
+        [iTermKeyBindingMgr setInActionMode:YES];
+        return YES;
+    } else if ([iTermKeyBindingMgr inActionMode]) {
+        [iTermKeyBindingMgr setInActionMode:NO];
+    }
 
     if (keyBindingAction == KEY_ACTION_SELECT_MENU_ITEM) {
         DLog(@"Invoking keybinding action to select menu item %@", keyBindingText);
@@ -4859,31 +4866,31 @@ ITERM_WEAKLY_REFERENCEABLE
             break;
         case KEY_ACTION_ESCAPE_SEQUENCE:
             if (_exited || isTmuxGateway) {
-                return;
+                break;
             }
             [self sendEscapeSequence:keyBindingText];
             break;
         case KEY_ACTION_HEX_CODE:
             if (_exited || isTmuxGateway) {
-                return;
+                break;
             }
             [self sendHexCode:keyBindingText];
             break;
         case KEY_ACTION_TEXT:
             if (_exited || isTmuxGateway) {
-                return;
+                break;
             }
             [self sendText:keyBindingText];
             break;
         case KEY_ACTION_VIM_TEXT:
             if (_exited || isTmuxGateway) {
-                return;
+                break;
             }
             [self sendText:[keyBindingText stringByExpandingVimSpecialCharacters]];
             break;
         case KEY_ACTION_RUN_COPROCESS:
             if (_exited || isTmuxGateway) {
-                return;
+                break;
             }
             [self launchCoprocessWithCommand:keyBindingText];
             break;
@@ -4893,13 +4900,13 @@ ITERM_WEAKLY_REFERENCEABLE
 
         case KEY_ACTION_SEND_C_H_BACKSPACE:
             if (_exited || isTmuxGateway) {
-                return;
+                break;
             }
             [self writeStringWithLatin1Encoding:@"\010"];
             break;
         case KEY_ACTION_SEND_C_QM_BACKSPACE:
             if (_exited || isTmuxGateway) {
-                return;
+                break;
             }
             [self writeStringWithLatin1Encoding:@"\177"]; // decimal 127
             break;
@@ -4909,7 +4916,7 @@ ITERM_WEAKLY_REFERENCEABLE
             break;
         case KEY_ACTION_IR_BACKWARD:
             if (isTmuxGateway) {
-                return;
+                break;
             }
             [[iTermController sharedInstance] irAdvance:-1];
             break;
@@ -5064,9 +5071,21 @@ ITERM_WEAKLY_REFERENCEABLE
             [[[iTermController sharedInstance] currentTerminal] swapPaneDown];
             break;
 
+        case KEY_ACTION_ENTER_ACTION_MODE:
+            [iTermKeyBindingMgr setInActionMode:YES];
+            // Leave early
+            return;
+        case KEY_ACTION_SEND_ACTION_MODE_KEY: {
+            [self sendActionModeKeyCombination];
+            break;
+        }
         default:
             ELog(@"Unknown key action %d", keyBindingAction);
             break;
+    }
+    
+    if ([iTermKeyBindingMgr inActionMode]) {
+        [iTermKeyBindingMgr setInActionMode:NO];
     }
 }
 
@@ -5453,6 +5472,35 @@ ITERM_WEAKLY_REFERENCEABLE
     }
 
     return data;
+}
+
+- (void)sendActionModeKeyCombination
+{
+    unsigned int keyMods = 0;
+    unsigned int keyCode = 0;
+
+    NSString *key = [iTermKeyBindingMgr actionModeKeyCombination];
+    if (!key)
+        return;
+    
+    sscanf([key UTF8String], "%x-%x", &keyCode, &keyMods);
+    
+    NSEventModifierFlags flags = [iTermKeyBindingMgr modifiersForKeyCode:keyCode modifiers:keyMods];
+    NSString *c = [iTermKeyBindingMgr stringForCharacter:keyCode isArrow:nil];
+    
+    NSEvent *e = [NSEvent keyEventWithType:NSKeyDown
+                                  location:NSZeroPoint
+                             modifierFlags:flags
+                                 timestamp:0
+                              windowNumber:[[NSApp mainWindow] windowNumber]
+                                   context:nil
+                                characters:c
+               charactersIgnoringModifiers:c
+                                 isARepeat:NO
+                                   keyCode:keyCode];
+    
+    [iTermKeyBindingMgr setActionModeShouldIgnoreNextCommand];
+    [[NSApplication sharedApplication] sendEvent:e];
 }
 
 - (BOOL)hasActionableKeyMappingForEvent:(NSEvent *)event

@@ -34,6 +34,7 @@
     IBOutlet NSTextField *_colorPresetsLabel;
     IBOutlet NSPopUpButton *_colorPresetsPopup;
     IBOutlet NSView *_pasteSpecialViewContainer;
+    IBOutlet NSButton *_actionMode;
 
     iTermPasteSpecialViewController *_pasteSpecialViewController;
 }
@@ -66,6 +67,7 @@
     [_actionPopup selectItemWithTag:self.action];
     [_actionPopup setTitle:[self titleOfActionWithTag:self.action]];
     _parameter.stringValue = self.parameterValue ?: @"";
+    _actionMode.state = (self.inActionMode ? NSOnState : NSOffState);
     if (self.action == KEY_ACTION_SELECT_MENU_ITEM) {
         [[self class] populatePopUpButtonWithMenuItems:_menuToSelectPopup
                                          selectedValue:[[_menuToSelectPopup selectedItem] title]];
@@ -476,6 +478,7 @@
     }
     
     self.action = [[_actionPopup selectedItem] tag];
+    self.inActionMode = ([_actionMode state] == NSOnState);
 
     switch (self.action) {
         case KEY_ACTION_SELECT_MENU_ITEM:

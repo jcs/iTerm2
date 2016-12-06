@@ -141,8 +141,12 @@
 #define KEY_ACTION_SWAP_PANE_BELOW 56
 #define KEY_FIND_AGAIN_DOWN 57
 #define KEY_FIND_AGAIN_UP 58
+#define KEY_ACTION_ENTER_ACTION_MODE 59
+#define KEY_ACTION_SEND_ACTION_MODE_KEY 60
 
 @interface iTermKeyBindingMgr : NSObject
+
++ (NSString *)stringForCharacter:(unsigned int)character isArrow:(BOOL *)isArrowPtr;
 
 + (NSArray<NSString *> *)sortedTouchBarKeysInDictionary:(NSDictionary<NSString *, NSDictionary *> *)dict;
 
@@ -154,6 +158,9 @@
 // keycode to character. keyCode must not be 0, or it will fall back to the
 // character embedded in the key combination.
 + (NSString *)formatKeyCombination:(NSString *)theKeyCombination keyCode:(NSUInteger)keyCode;
+
+// Return the key combination of the first key bound to KEY_ACTION_ENTER_ACTION_MODE, if any
++ (NSString *)actionModeKeyCombination;
 
 // Given a keycode and a modifier return 0xKeycode-0xModifiers
 + (NSString *)identifierForCharacterIgnoringModifiers:(unichar)characterIgnoringModifiers
@@ -222,6 +229,7 @@
                    forKey:(NSString*)keyString
                    action:(int)actionIndex
                     value:(NSString*)valueToSend
+             inActionMode:(BOOL)actionMode
                 createNew:(BOOL)newMapping
                inBookmark:(NSMutableDictionary*)bookmark;
 
@@ -230,6 +238,7 @@
                    forKey:(NSString*)keyString
                    action:(int)actionIndex
                     value:(NSString*)valueToSend
+             inActionMode:(BOOL)actionMode
                 createNew:(BOOL)newMapping
              inDictionary:(NSMutableDictionary*)km;
 
@@ -310,11 +319,17 @@
 // bookmark is returned.
 + (Profile*)removeMappingsReferencingGuid:(NSString*)guid fromBookmark:(Profile*)bookmark;
 
++ (NSEventModifierFlags)modifiersForKeyCode:(int)keyCode modifiers:(NSEventModifierFlags)keyMods;
 
 + (int)actionForTouchBarItemBinding:(NSDictionary *)binding;
 + (NSString *)parameterForTouchBarItemBinding:(NSDictionary *)binding;
 
 + (NSString *)touchBarLabelForBinding:(NSDictionary *)binding;
+
++ (BOOL)inActionMode;
++ (void)setInActionMode:(BOOL)mode;
++ (BOOL)actionModeShouldIgnoreNextCommand;
++ (void)setActionModeShouldIgnoreNextCommand;
 
 @end
 
