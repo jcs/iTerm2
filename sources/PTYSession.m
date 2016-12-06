@@ -2403,6 +2403,8 @@ ITERM_WEAKLY_REFERENCEABLE
         DLog(@"Invoking keybinding action to select menu item %@", keyBindingText);
         [PTYSession selectMenuItem:keyBindingText];
         return YES;
+    } else if ([[iTermTilingManager sharedInstance] handleAction:keyBindingAction]) {
+        return YES;
     } else {
         return NO;
     }
@@ -5081,7 +5083,9 @@ ITERM_WEAKLY_REFERENCEABLE
             break;
 
         default:
-            ELog(@"Unknown key action %d", keyBindingAction);
+            if (![[iTermTilingManager sharedInstance] handleAction:keyBindingAction])
+                ELog(@"Unknown key action %d", keyBindingAction);
+            
             break;
     }
     

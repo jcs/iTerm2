@@ -237,36 +237,8 @@
         return nil;
 }
 
-- (BOOL)handleKeyEvent:(NSEvent *)event
+- (BOOL)handleAction:(int)action
 {
-        NSString *unmodkeystr = [event charactersIgnoringModifiers];
-        unichar unmodunicode = [unmodkeystr length] > 0 ? [unmodkeystr characterAtIndex:0] : 0;
-        unsigned int modflag = [event modifierFlags];
-        NSDictionary *keyMapping;
-
-        NSString *keyString = [iTermKeyBindingMgr identifierForCharacterIgnoringModifiers:unmodunicode modifiers:modflag];
-        keyMapping = [[iTermKeyBindingMgr globalKeyMap] objectForKey:keyString];
-        if (keyMapping == nil)
-                return NO;
-        
-        int action = [[keyMapping objectForKey: @"Action"] intValue];
-        
-#if 0
-        if (!self.actionMode) {
-                if (action == KEY_ACTION_TILING_ACTION) {
-                        NSLog(@"[TilingManager] enabling action mode");
-                        self.actionMode = YES;
-                        [[NSCursor contextualMenuCursor] push];
-                        
-                        [iTermTilingToast hideAllToasts];
-
-                        return YES;
-                }
-                
-                return NO;
-        }
-#endif
-        
         BOOL ret = YES;
         
         switch (action) {
@@ -359,29 +331,8 @@
         default:
                 NSLog(@"[TilingManager] other key pressed while in action mode: %d", action);
         }
-        
-        self.actionMode = NO;
-        [NSCursor pop];
 
         return ret;
-}
-
-- (void)sendActionKey:(NSEvent *)event
-{
-        /* TODO: actually find first key bound to KEY_ACTION_TILING_ACTION and send it, rather than hard-coded control+a */
-        
-        ignoreEvent = [NSEvent keyEventWithType:NSKeyDown
-                                                 location:NSMakePoint(1, 1)
-                                            modifierFlags:NSControlKeyMask
-                                                timestamp:[NSDate timeIntervalSinceReferenceDate]
-                                             windowNumber:0
-                                                  context:[NSGraphicsContext currentContext]
-                                               characters:@"a"
-                              charactersIgnoringModifiers:@"a"
-                                                isARepeat:NO
-                                                  keyCode:0];
-        
-        [[NSApplication sharedApplication] sendEvent:ignoreEvent];
 }
 
 - (void)horizontallySplitCurrentFrame

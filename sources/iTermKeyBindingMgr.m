@@ -721,17 +721,9 @@ exit:
         }
         return -1;
     }
-    
+
     // parse the mapping
     retCode = [[theKeyMapping objectForKey: @"Action"] intValue];
-    
-    if ([[iTermTilingManager sharedInstance] downgradeKeyAction:retCode]) {
-        if (text) {
-            *text = nil;
-        }
-        return -1;
-    }
-    
     if(text != nil)
         *text = [theKeyMapping objectForKey: @"Text"];
 
@@ -1340,6 +1332,11 @@ exit:
 
     _inActionMode = mode;
     _actionModeShouldIgnoreNextCommand = NO;
+    
+    if (mode)
+        [[NSCursor contextualMenuCursor] push];
+    else
+        [[NSCursor contextualMenuCursor] pop];
 }
 
 + (BOOL)actionModeShouldIgnoreNextCommand

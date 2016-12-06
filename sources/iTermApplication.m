@@ -139,10 +139,6 @@
             return;
         }
         
-        if ([[iTermTilingManager sharedInstance] handleKeyEvent:event]) {
-            return;
-        }
-        
         const NSUInteger allModifiers =
             (NSShiftKeyMask | NSControlKeyMask | NSCommandKeyMask | NSAlternateKeyMask);
         if (([event modifierFlags] & allModifiers) == [iTermPreferences maskForModifierTag:[iTermPreferences intForKey:kPreferenceKeySwitchWindowModifier]]) {

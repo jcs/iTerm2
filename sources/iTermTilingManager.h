@@ -21,7 +21,6 @@ typedef NS_ENUM(NSInteger, iTermTilingFrameDirection) {
 
 @interface iTermTilingManager : NSObject
 
-@property BOOL actionMode;
 @property (assign) NSMutableArray<iTermTilingFrame *> *frames;
 @property (assign) NSColor *activeFrameBorderColor;
 @property (assign) NSColor *inactiveFrameBorderColor;
@@ -32,7 +31,6 @@ typedef NS_ENUM(NSInteger, iTermTilingFrameDirection) {
 + (instancetype)sharedInstance;
 - (iTermTilingFrame *)currentFrame;
 - (void)setCurrentFrame:(iTermTilingFrame *)newCur;
-- (BOOL)downgradeKeyAction:(int)action;
-- (BOOL)handleKeyEvent:(NSEvent *)event;
+- (BOOL)handleAction:(int)action;
 
 @end
