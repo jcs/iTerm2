@@ -139,27 +139,32 @@
 #define KEY_ACTION_SWAP_PANE_RIGHT      54
 #define KEY_ACTION_SWAP_PANE_ABOVE      55
 #define KEY_ACTION_SWAP_PANE_BELOW      56
-#define KEY_ACTION_TILING_ACTION        57
-#define KEY_ACTION_TILING_HSPLIT        58
-#define KEY_ACTION_TILING_VSPLIT        59
-#define KEY_ACTION_TILING_FOCUS_LEFT    60
-#define KEY_ACTION_TILING_FOCUS_RIGHT   61
-#define KEY_ACTION_TILING_FOCUS_UP      62
-#define KEY_ACTION_TILING_FOCUS_DOWN    63
-#define KEY_ACTION_TILING_FOCUS_LAST    64
-#define KEY_ACTION_TILING_SWAP_LEFT     65
-#define KEY_ACTION_TILING_SWAP_RIGHT    66
-#define KEY_ACTION_TILING_SWAP_UP       67
-#define KEY_ACTION_TILING_SWAP_DOWN     68
-#define KEY_ACTION_TILING_REMOVE        69
-#define KEY_ACTION_TILING_NEW_WINDOW    70
-#define KEY_ACTION_TILING_CYCLE_NEXT    71
-#define KEY_ACTION_TILING_CYCLE_PREV    72
-#define KEY_ACTION_TILING_SHOW_FRAMES   73
-#define KEY_ACTION_TILING_SEND_ACTION_KEY 74
-#define KEY_ACTION_TILING_LASTID        74
+#define KEY_FIND_AGAIN_DOWN             57
+#define KEY_FIND_AGAIN_UP               58
+#define KEY_ACTION_ENTER_ACTION_MODE    59
+#define KEY_ACTION_SEND_ACTION_MODE_KEY 60
+
+#define KEY_ACTION_TILING_HSPLIT        61
+#define KEY_ACTION_TILING_VSPLIT        62
+#define KEY_ACTION_TILING_FOCUS_LEFT    63
+#define KEY_ACTION_TILING_FOCUS_RIGHT   64
+#define KEY_ACTION_TILING_FOCUS_UP      65
+#define KEY_ACTION_TILING_FOCUS_DOWN    66
+#define KEY_ACTION_TILING_FOCUS_LAST    67
+#define KEY_ACTION_TILING_SWAP_LEFT     68
+#define KEY_ACTION_TILING_SWAP_RIGHT    69
+#define KEY_ACTION_TILING_SWAP_UP       70
+#define KEY_ACTION_TILING_SWAP_DOWN     71
+#define KEY_ACTION_TILING_REMOVE        72
+#define KEY_ACTION_TILING_NEW_WINDOW    73
+#define KEY_ACTION_TILING_CYCLE_NEXT    74
+#define KEY_ACTION_TILING_CYCLE_PREV    75
+#define KEY_ACTION_TILING_SHOW_FRAMES   76
+#define KEY_ACTION_TILING_LASTID        77
 
 @interface iTermKeyBindingMgr : NSObject
+
++ (NSString *)stringForCharacter:(unsigned int)character isArrow:(BOOL *)isArrowPtr;
 
 + (NSArray<NSString *> *)sortedTouchBarKeysInDictionary:(NSDictionary<NSString *, NSDictionary *> *)dict;
 
@@ -171,6 +176,9 @@
 // keycode to character. keyCode must not be 0, or it will fall back to the
 // character embedded in the key combination.
 + (NSString *)formatKeyCombination:(NSString *)theKeyCombination keyCode:(NSUInteger)keyCode;
+
+// Return the key combination of the first key bound to KEY_ACTION_ENTER_ACTION_MODE, if any
++ (NSString *)actionModeKeyCombination;
 
 // Given a keycode and a modifier return 0xKeycode-0xModifiers
 + (NSString *)identifierForCharacterIgnoringModifiers:(unichar)characterIgnoringModifiers
@@ -239,6 +247,7 @@
                    forKey:(NSString*)keyString
                    action:(int)actionIndex
                     value:(NSString*)valueToSend
+             inActionMode:(BOOL)actionMode
                 createNew:(BOOL)newMapping
                inBookmark:(NSMutableDictionary*)bookmark;
 
@@ -247,6 +256,7 @@
                    forKey:(NSString*)keyString
                    action:(int)actionIndex
                     value:(NSString*)valueToSend
+             inActionMode:(BOOL)actionMode
                 createNew:(BOOL)newMapping
              inDictionary:(NSMutableDictionary*)km;
 
@@ -327,11 +337,17 @@
 // bookmark is returned.
 + (Profile*)removeMappingsReferencingGuid:(NSString*)guid fromBookmark:(Profile*)bookmark;
 
++ (NSEventModifierFlags)modifiersForKeyCode:(int)keyCode modifiers:(NSEventModifierFlags)keyMods;
 
 + (int)actionForTouchBarItemBinding:(NSDictionary *)binding;
 + (NSString *)parameterForTouchBarItemBinding:(NSDictionary *)binding;
 
 + (NSString *)touchBarLabelForBinding:(NSDictionary *)binding;
+
++ (BOOL)inActionMode;
++ (void)setInActionMode:(BOOL)mode;
++ (BOOL)actionModeShouldIgnoreNextCommand;
++ (void)setActionModeShouldIgnoreNextCommand;
 
 @end
 

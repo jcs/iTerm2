@@ -87,6 +87,8 @@
 static NSDictionary *globalKeyMap;
 static NSDictionary *globalTouchBarMap;
 static NSString *const kFactoryDefaultsGlobalPreset = @"Factory Defaults";
+static BOOL _inActionMode;
+static BOOL _actionModeShouldIgnoreNextCommand;
 
 @implementation iTermKeyBindingMgr
 
@@ -327,9 +329,15 @@ exit:
 + (NSString *)formatKeyCombination:(NSString *)theKeyCombination keyCode:(NSUInteger)virtualKeyCode {
     unsigned int keyMods = 0;
     unsigned int keyCode = 0;
+    BOOL actionMode = NO;
 
-    sscanf([theKeyCombination UTF8String], "%x-%x", &keyCode, &keyMods);
-
+    if ([theKeyCombination containsString:@"-actionMode"]) {
+        sscanf([theKeyCombination UTF8String], "%x-%x-actionMode", &keyCode, &keyMods);
+        actionMode = YES;
+    } else {
+        sscanf([theKeyCombination UTF8String], "%x-%x", &keyCode, &keyMods);
+    }
+    
     BOOL isArrow = NO;
     NSString *charactersAsString = [self stringForKeyCode:virtualKeyCode character:keyCode isArrow:&isArrow];
 
@@ -338,7 +346,33 @@ exit:
         [result appendString: @"num-"];
     }
     [result appendString:charactersAsString];
-    return result;
+    
+    if (actionMode)
+        return [NSString stringWithFormat:@"%@, %@", [iTermKeyBindingMgr formattedActionModeKeyCombination], result];
+    else
+        return result;
+}
+
++ (NSString *)actionModeKeyCombination {
+    NSDictionary *map = [iTermKeyBindingMgr globalKeyMap];
+    for (NSString *key in map) {
+        NSDictionary *keyInfo = [map objectForKey:key];
+        
+        int action = [[keyInfo objectForKey: @"Action"] intValue];
+        if (action == KEY_ACTION_ENTER_ACTION_MODE) {
+            return key;
+        }
+    }
+    
+    return nil;
+}
+
++ (NSString *)formattedActionModeKeyCombination {
+    NSString *key = [self actionModeKeyCombination];
+    if (key)
+        return [self formatKeyCombination:key];
+    else
+        return @"(Action mode)";
 }
 
 + (NSString*)_bookmarkNameForGuid:(NSString*)guid
@@ -490,6 +524,12 @@ exit:
         case KEY_ACTION_FIND_REGEX:
             actionString = [NSString stringWithFormat:@"Find Regex “%@”", auxText];
             break;
+        case KEY_FIND_AGAIN_DOWN:
+            actionString = @"Find Again Down";
+            break;
+        case KEY_FIND_AGAIN_UP:
+            actionString = @"Find Again Up";
+            break;
         case KEY_ACTION_PASTE_SPECIAL_FROM_SELECTION: {
             NSString *pasteDetails =
                 [iTermPasteSpecialViewController descriptionForCodedSettings:auxText];
@@ -554,9 +594,13 @@ exit:
             actionString = @"Swap With Split Pane Below";
             break;
 
-        case KEY_ACTION_TILING_ACTION:
-            actionString = @"Tiling Window Manager - Enter Action Mode";
+        case KEY_ACTION_ENTER_ACTION_MODE:
+            actionString = @"Enter Key Action Mode";
             break;
+        case KEY_ACTION_SEND_ACTION_MODE_KEY:
+            actionString = [NSString stringWithFormat:@"Send %@", [iTermKeyBindingMgr formattedActionModeKeyCombination]];
+            break;
+
         case KEY_ACTION_TILING_HSPLIT:
             actionString = @"Tiling WM Action Mode - Horizontal Split";
             break;
@@ -604,9 +648,6 @@ exit:
             break;
         case KEY_ACTION_TILING_SHOW_FRAMES:
             actionString = @"Tiling WM Action Mode - Show Frame Numbers";
-            break;
-        case KEY_ACTION_TILING_SEND_ACTION_KEY:
-            actionString = @"Tiling WM Action Mode - Send Action Key";
             break;
             
         default:
@@ -668,6 +709,10 @@ exit:
     
     NSDictionary *theKeyMapping;
     int retCode = -1;
+
+    if ([iTermKeyBindingMgr inActionMode]) {
+        keyString = [NSString stringWithFormat:@"%@-actionMode", keyString];
+    }
 
     theKeyMapping = [keyMappings objectForKey: keyString];
     if (theKeyMapping == nil) {
@@ -844,6 +889,7 @@ exit:
                    forKey:(NSString*)keyString
                    action:(int)actionIndex
                     value:(NSString*)valueToSend
+             inActionMode:(BOOL)actionMode
                 createNew:(BOOL)newMapping
              inDictionary:(NSMutableDictionary*)km
 {
@@ -851,6 +897,10 @@ exit:
     NSString* origKeyCombo = nil;
     NSArray* allKeys =
         [[km allKeys] sortedArrayUsingSelector:@selector(caseInsensitiveCompare:)];
+    
+    if (actionMode)
+        keyString = [NSString stringWithFormat:@"%@-actionMode", keyString];
+    
     if (!newMapping) {
         if (rowIndex >= 0 && rowIndex < [allKeys count]) {
             origKeyCombo = [allKeys objectAtIndex:rowIndex];
@@ -870,6 +920,8 @@ exit:
     [keyBinding setObject:[NSNumber numberWithInt:actionIndex]
                    forKey:@"Action"];
     [keyBinding setObject:[[valueToSend copy] autorelease] forKey:@"Text"];
+    if (actionMode)
+        [keyBinding setObject:[NSNumber numberWithBool:actionMode] forKey:@"ActionMode"];
     if (origKeyCombo) {
         [km removeObjectForKey:origKeyCombo];
     }
@@ -880,11 +932,12 @@ exit:
                    forKey:(NSString*)keyString
                    action:(int)actionIndex
                     value:(NSString*)valueToSend
+             inActionMode:(BOOL)actionMode
                 createNew:(BOOL)newMapping
                inBookmark:(NSMutableDictionary*)bookmark {
     NSMutableDictionary* km =
-        [NSMutableDictionary dictionaryWithDictionary:[bookmark objectForKey:KEY_KEYBOARD_MAP]];
-    [iTermKeyBindingMgr setMappingAtIndex:rowIndex forKey:keyString action:actionIndex value:valueToSend createNew:newMapping inDictionary:km];
+    [NSMutableDictionary dictionaryWithDictionary:[bookmark objectForKey:KEY_KEYBOARD_MAP]];
+    [iTermKeyBindingMgr setMappingAtIndex:rowIndex forKey:keyString action:actionIndex value:valueToSend inActionMode:actionMode createNew:newMapping inDictionary:km];
     [bookmark setObject:km forKey:KEY_KEYBOARD_MAP];
 }
 
@@ -1273,5 +1326,30 @@ exit:
     }
 }
 
++ (BOOL)inActionMode
+{
+    return _inActionMode;
+}
+
++ (void)setInActionMode:(BOOL)mode
+{
+    if (mode && [self actionModeShouldIgnoreNextCommand]) {
+        _actionModeShouldIgnoreNextCommand = NO;
+        return;
+    }
+
+    _inActionMode = mode;
+    _actionModeShouldIgnoreNextCommand = NO;
+}
+
++ (BOOL)actionModeShouldIgnoreNextCommand
+{
+    return _actionModeShouldIgnoreNextCommand;
+}
+
++ (void)setActionModeShouldIgnoreNextCommand
+{
+    _actionModeShouldIgnoreNextCommand = YES;
+}
 
 @end

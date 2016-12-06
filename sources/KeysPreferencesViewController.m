@@ -363,6 +363,7 @@ static NSString *const kHotkeyWindowGeneratedProfileNameKey = @"Hotkey Window";
           toAction:(int)action
          parameter:(NSString *)parameter
              label:(NSString *)label  // for touch bar only
+      inActionMode:(BOOL)actionMode
         isAddition:(BOOL)addition {
     NSMutableDictionary *dict;
     if (isTouchBarItem) {
@@ -380,6 +381,7 @@ static NSString *const kHotkeyWindowGeneratedProfileNameKey = @"Hotkey Window";
                                        forKey:theKey
                                        action:action
                                         value:parameter
+                                 inActionMode:actionMode
                                     createNew:addition
                                  inDictionary:dict];
         [iTermKeyBindingMgr setGlobalKeyMap:dict];

@@ -29,16 +29,6 @@
         return instance;
 }
 
-+ (BOOL)ignoreKeyBindingAction:(int)code
-{
-        if (code == KEY_ACTION_TILING_ACTION)
-                return NO;
-        else if (code >= KEY_ACTION_TILING_ACTION && code <= KEY_ACTION_TILING_LASTID)
-                return ![[iTermTilingManager sharedInstance] actionMode];
-        else
-                return YES;
-}
-
 - (instancetype)init
 {
         if (!(self = [super init]))
@@ -247,11 +237,6 @@
         return nil;
 }
 
-- (BOOL)downgradeKeyAction:(int)action
-{
-        return (action >= KEY_ACTION_TILING_ACTION && action <= KEY_ACTION_TILING_LASTID);
-}
-
 - (BOOL)handleKeyEvent:(NSEvent *)event
 {
         NSString *unmodkeystr = [event charactersIgnoringModifiers];
@@ -266,11 +251,7 @@
         
         int action = [[keyMapping objectForKey: @"Action"] intValue];
         
-        if (ignoreEvent && [event isEqualTo:ignoreEvent]) {
-                ignoreEvent = nil;
-                return NO;
-        }
-
+#if 0
         if (!self.actionMode) {
                 if (action == KEY_ACTION_TILING_ACTION) {
                         NSLog(@"[TilingManager] enabling action mode");
@@ -284,14 +265,11 @@
                 
                 return NO;
         }
+#endif
         
         BOOL ret = YES;
         
         switch (action) {
-        case KEY_ACTION_TILING_ACTION:
-                NSLog(@"[TilingManager] action key pressed in action mode");
-                ret = NO;
-                break;
         case KEY_ACTION_TILING_HSPLIT:
         {
                 /* split the current frame into two, left and right */
@@ -355,10 +333,6 @@
         case KEY_ACTION_TILING_NEW_WINDOW:
                 NSLog(@"[TilingManager] new window");
                 [[iTermController sharedInstance] launchBookmark:[[ProfileModel sharedInstance] defaultBookmark] inTerminal:nil];
-                break;
-        case KEY_ACTION_TILING_SEND_ACTION_KEY:
-                NSLog(@"[TilingManager] send action key");
-                [self sendActionKey:event];
                 break;
         case KEY_ACTION_TILING_CYCLE_NEXT:
                 NSLog(@"[TilingManager] cycle next window");

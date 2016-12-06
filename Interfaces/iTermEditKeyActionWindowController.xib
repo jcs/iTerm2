@@ -8,6 +8,7 @@
     <objects>
         <customObject id="-2" userLabel="File's Owner" customClass="iTermEditKeyActionWindowController">
             <connections>
+                <outlet property="_actionMode" destination="H9D-dM-Mdm" id="7di-fg-rIN"/>
                 <outlet property="_actionPopup" destination="GMz-jA-Nhg" id="FTh-b5-yVm"/>
                 <outlet property="_colorPresetsLabel" destination="TtY-N0-xlA" id="WGZ-eQ-7DP"/>
                 <outlet property="_colorPresetsPopup" destination="tld-gp-ZWP" id="pmR-N0-sjS"/>
@@ -169,6 +170,12 @@
                                             <menuItem title="Find Regular Expression…" tag="36" id="cm6-Qm-ZZ2">
                                                 <modifierMask key="keyEquivalentModifierMask"/>
                                             </menuItem>
+                                            <menuItem title="Find Again Down" tag="57" id="HpW-sT-CrS">
+                                                <modifierMask key="keyEquivalentModifierMask"/>
+                                            </menuItem>
+                                            <menuItem title="Find Again Up" tag="58" id="SbI-2u-CFv">
+                                                <modifierMask key="keyEquivalentModifierMask"/>
+                                            </menuItem>
                                             <menuItem isSeparatorItem="YES" id="33m-xl-Tut"/>
                                             <menuItem title="Undo" tag="44" id="jbm-dN-Ohe">
                                                 <modifierMask key="keyEquivalentModifierMask"/>
@@ -193,24 +200,25 @@
                                             <menuItem title="Move End of Selection Back" tag="45" id="L33-q3-stz"/>
                                             <menuItem title="Move End of Selection Forward" tag="46" id="xRC-3K-RlB"/>
                                             <menuItem isSeparatorItem="YES" id="c8c-8I-caf"/>
-                                            <menuItem title="Tiling Window Manager - Enter Action Mode" tag="57" id="RhP-Lx-fyE"/>
-                                            <menuItem title="Tiling WM Action Mode - Horizontal Split" tag="58" id="pJS-Oe-Pun"/>
-                                            <menuItem title="Tiling WM Action Mode - Vertical Split" tag="59" id="N0X-0Y-Km0"/>
-                                            <menuItem title="Tiling WM Action Mode - Focus Split Left" tag="60" id="fYS-AX-MVv"/>
-                                            <menuItem title="Tiling WM Action Mode - Focus Split Right" tag="61" id="cDC-q9-51w"/>
-                                            <menuItem title="Tiling WM Action Mode - Focus Split Above" tag="62" id="VxK-VU-RxG"/>
-                                            <menuItem title="Tiling WM Action Mode - Focus Split Below" tag="63" id="0XV-nr-t1V"/>
-                                            <menuItem title="Tiling WM Action Mode - Focus Last Split" tag="64" id="104-2Z-N3e"/>
-                                            <menuItem title="Tiling WM Action Mode - Cycle Next Window" tag="71" id="Y9h-ZV-oBV"/>
-                                            <menuItem title="Tiling WM Action Mode - Cycle Previous Window" tag="72" id="MU3-hr-FLF"/>
-                                            <menuItem title="Tiling WM Action Mode - Swap with Left" tag="65" id="gnB-VB-mNO"/>
-                                            <menuItem title="Tiling WM Action Mode - Swap with Right" tag="66" id="tUF-aA-HU1"/>
-                                            <menuItem title="Tiling WM Action Mode - Swap with Above" tag="67" id="oep-hh-I6K"/>
-                                            <menuItem title="Tiling WM Action Mode - Swap with Below" tag="68" id="yMP-H3-c1M"/>
-                                            <menuItem title="Tiling WM Action Mode - Remove Split" tag="69" id="fqt-gL-tQa"/>
-                                            <menuItem title="Tiling WM Action Mode - New Window" tag="70" id="VuA-V4-mNJ"/>
-                                            <menuItem title="Tiling WM Action Mode - Show Frame Numbers" tag="73" id="HgQ-2V-Ibm"/>
-                                            <menuItem title="Tiling WM Action Mode - Send Action Mode Key" tag="74" id="Vdt-pF-eEV"/>
+                                            <menuItem title="Enter Key Action Mode" tag="59" id="QBv-Nq-mno"/>
+                                            <menuItem title="Send &quot;Enter Key Action Mode&quot; Key" tag="60" id="HQ9-93-V26"/>
+                                            <menuItem isSeparatorItem="YES" id="iIf-RT-3No"/>
+                                            <menuItem title="Tiling WM - Horizontal Split" tag="58" id="pJS-Oe-Pun"/>
+                                            <menuItem title="Tiling WM - Vertical Split" tag="59" id="N0X-0Y-Km0"/>
+                                            <menuItem title="Tiling WM - Focus Split Left" tag="60" id="fYS-AX-MVv"/>
+                                            <menuItem title="Tiling WM - Focus Split Right" tag="61" id="cDC-q9-51w"/>
+                                            <menuItem title="Tiling WM - Focus Split Above" tag="62" id="VxK-VU-RxG"/>
+                                            <menuItem title="Tiling WM - Focus Split Below" tag="63" id="0XV-nr-t1V"/>
+                                            <menuItem title="Tiling WM - Focus Last Split" tag="64" id="104-2Z-N3e"/>
+                                            <menuItem title="Tiling WM - Cycle Next Window" tag="71" id="Y9h-ZV-oBV"/>
+                                            <menuItem title="Tiling WM - Cycle Previous Window" tag="72" id="MU3-hr-FLF"/>
+                                            <menuItem title="Tiling WM - Swap with Left" tag="65" id="gnB-VB-mNO"/>
+                                            <menuItem title="Tiling WM - Swap with Right" tag="66" id="tUF-aA-HU1"/>
+                                            <menuItem title="Tiling WM - Swap with Above" tag="67" id="oep-hh-I6K"/>
+                                            <menuItem title="Tiling WM - Swap with Below" tag="68" id="yMP-H3-c1M"/>
+                                            <menuItem title="Tiling WM - Remove Split" tag="69" id="fqt-gL-tQa"/>
+                                            <menuItem title="Tiling WM - New Window" tag="70" id="VuA-V4-mNJ"/>
+                                            <menuItem title="Tiling WM - Show Frame Numbers" tag="73" id="HgQ-2V-Ibm"/>
                                             <menuItem isSeparatorItem="YES" id="Lym-RO-frp"/>
                                             <menuItem title="Select Menu Item..." tag="25" id="haJ-OE-peX"/>
                                         </items>
@@ -259,8 +267,8 @@ Gw
                                     <color key="backgroundColor" name="controlColor" catalog="System" colorSpace="catalog"/>
                                 </textFieldCell>
                             </textField>
-                            <textField verticalHuggingPriority="750" id="OcE-sI-T64" userLabel="Shortcut Text Field" customClass="iTermShortcutInputView">
-                                <rect key="frame" x="149" y="119" width="273" height="22"/>
+                            <textField verticalHuggingPriority="750" misplaced="YES" id="OcE-sI-T64" userLabel="Shortcut Text Field" customClass="iTermShortcutInputView">
+                                <rect key="frame" x="149" y="119" width="144" height="22"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" editable="YES" sendsActionOnEndEditing="YES" state="on" borderStyle="bezel" drawsBackground="YES" id="lcf-pM-rft">
                                     <font key="font" metaFont="system"/>
@@ -273,7 +281,7 @@ Gw
                                 </connections>
                             </textField>
                             <textField verticalHuggingPriority="750" misplaced="YES" id="oHw-49-aB1" userLabel="Touch Bar Label">
-                                <rect key="frame" x="150" y="119" width="273" height="22"/>
+                                <rect key="frame" x="150" y="119" width="143" height="22"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                 <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" editable="YES" sendsActionOnEndEditing="YES" state="on" borderStyle="bezel" alignment="left" placeholderString="Label to show in Touch Bar" drawsBackground="YES" id="mYT-YJ-w7Z">
                                     <font key="font" metaFont="system"/>
@@ -369,6 +377,14 @@ Gw
                                 <rect key="frame" x="20" y="-164" width="444" height="248"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                             </customView>
+                            <button misplaced="YES" id="H9D-dM-Mdm">
+                                <rect key="frame" x="299" y="121" width="113" height="18"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <buttonCell key="cell" type="check" title="In Action Mode" bezelStyle="regularSquare" imagePosition="left" state="on" inset="2" id="dZf-GM-LzG">
+                                    <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
+                                    <font key="font" metaFont="system"/>
+                                </buttonCell>
+                            </button>
                         </subviews>
                     </view>
                 </subviews>

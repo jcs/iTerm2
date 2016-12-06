@@ -148,6 +148,7 @@ static NSString *const kDeleteKeyString = @"0x7f-0x0";
                                        forKey:kDeleteKeyString
                                        action:KEY_ACTION_SEND_C_H_BACKSPACE
                                         value:@""
+                                 inActionMode:NO
                                     createNew:YES
                                    inBookmark:mutableProfile];
     } else {
@@ -237,6 +238,7 @@ static NSString *const kDeleteKeyString = @"0x7f-0x0";
           toAction:(int)action
          parameter:(NSString *)parameter
              label:(NSString *)label
+      inActionMode:(BOOL)actionMode
         isAddition:(BOOL)addition {
     Profile *profile = [self.delegate profilePreferencesCurrentProfile];
     assert(profile);
@@ -255,6 +257,7 @@ static NSString *const kDeleteKeyString = @"0x7f-0x0";
                                        forKey:keyCombo
                                        action:action
                                         value:parameter
+                                 inActionMode:actionMode
                                     createNew:addition
                                    inBookmark:dict];
     }
