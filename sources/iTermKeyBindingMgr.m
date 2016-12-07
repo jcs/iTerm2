@@ -602,52 +602,55 @@ exit:
             break;
 
         case KEY_ACTION_TILING_HSPLIT:
-            actionString = @"Tiling WM Action Mode - Horizontal Split";
+            actionString = @"Tiling WM - Horizontal Split";
             break;
         case KEY_ACTION_TILING_VSPLIT:
-            actionString = @"Tiling WM Action Mode - Vertical Split";
+            actionString = @"Tiling WM - Vertical Split";
             break;
         case KEY_ACTION_TILING_FOCUS_LEFT:
-            actionString = @"Tiling WM Action Mode - Focus Split Left";
+            actionString = @"Tiling WM - Focus Split Left";
             break;
         case KEY_ACTION_TILING_FOCUS_RIGHT:
-            actionString = @"Tiling WM Action Mode - Focus Split Right";
+            actionString = @"Tiling WM - Focus Split Right";
             break;
         case KEY_ACTION_TILING_FOCUS_UP:
-            actionString = @"Tiling WM Action Mode - Focus Split Above";
+            actionString = @"Tiling WM - Focus Split Above";
             break;
         case KEY_ACTION_TILING_FOCUS_DOWN:
-            actionString = @"Tiling WM Action Mode - Focus Split Below";
+            actionString = @"Tiling WM - Focus Split Below";
             break;
         case KEY_ACTION_TILING_FOCUS_LAST:
-            actionString = @"Tiling WM Action Mode - Focus Last Split";
+            actionString = @"Tiling WM - Focus Last Split";
             break;
         case KEY_ACTION_TILING_SWAP_LEFT:
-            actionString = @"Tiling WM Action Mode - Swap with Left";
+            actionString = @"Tiling WM - Swap With Left";
             break;
         case KEY_ACTION_TILING_SWAP_RIGHT:
-            actionString = @"Tiling WM Action Mode - Swap with Right";
+            actionString = @"Tiling WM - Swap With Right";
             break;
         case KEY_ACTION_TILING_SWAP_UP:
-            actionString = @"Tiling WM Action Mode - Swap with Above";
+            actionString = @"Tiling WM - Swap With Above";
             break;
         case KEY_ACTION_TILING_SWAP_DOWN:
-            actionString = @"Tiling WM Action Mode - Swap with Below";
+            actionString = @"Tiling WM - Swap With Below";
             break;
         case KEY_ACTION_TILING_REMOVE:
-            actionString = @"Tiling WM Action Mode - Remove Split";
+            actionString = @"Tiling WM - Remove Split";
             break;
         case KEY_ACTION_TILING_NEW_WINDOW:
-            actionString = @"Tiling WM Action Mode - New Window";
+            actionString = @"Tiling WM - New Window";
             break;
         case KEY_ACTION_TILING_CYCLE_NEXT:
-            actionString = @"Tiling WM Action Mode - Cycle Next Window";
+            actionString = @"Tiling WM - Cycle Next Window";
             break;
         case KEY_ACTION_TILING_CYCLE_PREV:
-            actionString = @"Tiling WM Action Mode - Cycle Previous Window";
+            actionString = @"Tiling WM - Cycle Previous Window";
+            break;
+        case KEY_ACTION_TILING_CYCLE_LAST:
+            actionString = @"Tiling WM - Cycle Last Window";
             break;
         case KEY_ACTION_TILING_SHOW_FRAMES:
-            actionString = @"Tiling WM Action Mode - Show Frame Numbers";
+            actionString = @"Tiling WM - Show Frame Numbers";
             break;
             
         default:
@@ -711,6 +714,13 @@ exit:
     int retCode = -1;
 
     if ([iTermKeyBindingMgr inActionMode]) {
+        if ([iTermKeyBindingMgr actionModeShouldIgnoreNextCommand]) {
+            if (text) {
+                *text = nil;
+            }
+            return -1;
+        }
+        
         keyString = [NSString stringWithFormat:@"%@-actionMode", keyString];
     }
 

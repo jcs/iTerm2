@@ -26,6 +26,7 @@
 - (void)unfocusFrontWindow;
 - (void)focusFrontWindow;
 - (void)cycleWindowsForward:(BOOL)forward;
+- (void)cycleLastWindow;
 - (CGRect)rectForWindow;
 - (void)redraw;
 

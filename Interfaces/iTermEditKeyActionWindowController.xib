@@ -212,13 +212,14 @@
                                             <menuItem title="Tiling WM - Focus Last Split" tag="67" id="104-2Z-N3e"/>
                                             <menuItem title="Tiling WM - Cycle Next Window" tag="74" id="Y9h-ZV-oBV"/>
                                             <menuItem title="Tiling WM - Cycle Previous Window" tag="75" id="MU3-hr-FLF"/>
-                                            <menuItem title="Tiling WM - Swap with Left" tag="68" id="gnB-VB-mNO"/>
-                                            <menuItem title="Tiling WM - Swap with Right" tag="69" id="tUF-aA-HU1"/>
-                                            <menuItem title="Tiling WM - Swap with Above" tag="70" id="oep-hh-I6K"/>
-                                            <menuItem title="Tiling WM - Swap with Below" tag="71" id="yMP-H3-c1M"/>
+                                            <menuItem title="Tiling WM - Cycle Last Window" tag="76" id="mJu-KY-XfV"/>
+                                            <menuItem title="Tiling WM - Swap With Left" tag="68" id="gnB-VB-mNO"/>
+                                            <menuItem title="Tiling WM - Swap With Right" tag="69" id="tUF-aA-HU1"/>
+                                            <menuItem title="Tiling WM - Swap With Above" tag="70" id="oep-hh-I6K"/>
+                                            <menuItem title="Tiling WM - Swap With Below" tag="71" id="yMP-H3-c1M"/>
                                             <menuItem title="Tiling WM - Remove Split" tag="72" id="fqt-gL-tQa"/>
                                             <menuItem title="Tiling WM - New Window" tag="73" id="VuA-V4-mNJ"/>
-                                            <menuItem title="Tiling WM - Show Frame Numbers" tag="76" id="HgQ-2V-Ibm"/>
+                                            <menuItem title="Tiling WM - Show Frame Numbers" tag="77" id="HgQ-2V-Ibm"/>
                                             <menuItem isSeparatorItem="YES" id="Lym-RO-frp"/>
                                             <menuItem title="Select Menu Item..." tag="25" id="haJ-OE-peX"/>
                                         </items>

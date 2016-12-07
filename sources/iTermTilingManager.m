@@ -246,14 +246,14 @@
         {
                 /* split the current frame into two, left and right */
                 NSLog(@"[TilingManager] horizontal split");
-                [self horizontallySplitCurrentFrame];
+                [self splitCurrentFrameHorizontally:YES];
                 break;
         }
         case KEY_ACTION_TILING_VSPLIT:
         {
                 /* split the current frame into two, top and bottom */
                 NSLog(@"[TilingManager] vertical split");
-                [self verticallySplitCurrentFrame];
+                [self splitCurrentFrameHorizontally:NO];
                 break;
         }
         case KEY_ACTION_TILING_FOCUS_LEFT:
@@ -314,7 +314,10 @@
                 NSLog(@"[TilingManager] cycle prev window");
                 [[self currentFrame] cycleWindowsForward:NO];
                 break;
-
+        case KEY_ACTION_TILING_CYCLE_LAST:
+                NSLog(@"[TilingManager] cycle last window");
+                [[self currentFrame] cycleLastWindow];
+                break;
         case KEY_ACTION_TILING_SWAP_LEFT:
                 NSLog(@"[TilingManager] swap left");
                 break;
@@ -330,14 +333,16 @@
 
         default:
                 NSLog(@"[TilingManager] other key pressed while in action mode: %d", action);
+                ret = NO;
         }
 
         return ret;
 }
 
-- (void)horizontallySplitCurrentFrame
+- (void)splitCurrentFrameHorizontally:(BOOL)horizontally
 {
-        /* split the current frame into two, left and right (becoming left position) */
+        /* split the current frame into two, either left and right (becoming left position) for horizontal, or top and bottom (becoming top) for vertical */
+        NSRect newCurRect, newNewRect;
         
         if (![self startAdjustingFrames])
                 return;
@@ -345,34 +350,19 @@
         iTermTilingFrame *cur = [self currentFrame];
 
         NSRect oldRect = [cur rect];
-        NSRect newCurRect = NSMakeRect(oldRect.origin.x, oldRect.origin.y, floor(oldRect.size.width / 2), oldRect.size.height);
-        NSRect newNewRect = NSMakeRect(newCurRect.origin.x + newCurRect.size.width, oldRect.origin.y, oldRect.size.width - newCurRect.size.width, oldRect.size.height);
+        if (horizontally) {
+                newCurRect = NSMakeRect(oldRect.origin.x, oldRect.origin.y, floor(oldRect.size.width / 2), oldRect.size.height);
+                newNewRect = NSMakeRect(newCurRect.origin.x + newCurRect.size.width, oldRect.origin.y, oldRect.size.width - newCurRect.size.width, oldRect.size.height);
+        } else {
+                newCurRect = NSMakeRect(oldRect.origin.x, oldRect.origin.y + (oldRect.size.height / 2), oldRect.size.width, oldRect.size.height / 2);
+                newNewRect = NSMakeRect(newCurRect.origin.x, oldRect.origin.y, oldRect.size.width, oldRect.size.height - newCurRect.size.height);
+        }
         
         [cur setRect:newCurRect];
         
         iTermTilingFrame *newFrame = [[iTermTilingFrame alloc] initWithRect:newNewRect andManager:self];
-        [self.frames addObject:newFrame];
-        
-        [self finishAdjustingFrames];
-}
-
-- (void)verticallySplitCurrentFrame
-{
-        /* split the current frame into two, top and bottom (becoming top position) */
-        
-        if (![self startAdjustingFrames])
-                return;
-        
-        iTermTilingFrame *cur = [self currentFrame];
-        
-        NSRect oldRect = [cur rect];
-        NSRect newCurRect = NSMakeRect(oldRect.origin.x, oldRect.origin.y + (oldRect.size.height / 2), oldRect.size.width, oldRect.size.height / 2);
-        NSRect newNewRect = NSMakeRect(newCurRect.origin.x, oldRect.origin.y, oldRect.size.width, oldRect.size.height - newCurRect.size.height);
-        
-        [cur setRect:newCurRect];
-        
-        iTermTilingFrame *newFrame = [[iTermTilingFrame alloc] initWithRect:newNewRect andManager:self];
-        [self.frames addObject:newFrame];
+        /* assuming we'll want to switch to our new frame next, put it at position 1 for KEY_ACTION_TILING_FOCUS_LAST */
+        [[self frames] insertObject:newFrame atIndex:1];
         
         [self finishAdjustingFrames];
 }

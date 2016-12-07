@@ -34,7 +34,7 @@
 - (void)addWindow:(iTermTilingWindow *)window
 {
         [window setFrame:self];
-        [[self windows] addObject:window];
+        [[self windows] insertObject:window atIndex:0];
 }
 
 - (void)removeWindow:(iTermTilingWindow *)window
@@ -88,6 +88,24 @@
                 [[self windows] insertObject:w atIndex:0];
                 [self focusFrontWindow];
         }
+}
+
+- (void)cycleLastWindow
+{
+        if ([[self windows] count] == 0) {
+                [iTermTilingToast showToastWithMessage:@"No managed windows" inFrame:self];
+                return;
+        }
+        
+        if ([[self windows] count] == 1) {
+                [iTermTilingToast showToastWithMessage:@"No other windows" inFrame:self];
+                return;
+        }
+        
+        iTermTilingWindow *w = [[self windows] objectAtIndex:0];
+        [[self windows] removeObjectAtIndex:0];
+        [[self windows] insertObject:w atIndex:1];
+        [self focusFrontWindow];
 }
 
 - (void)setRect:(CGRect)_rect
