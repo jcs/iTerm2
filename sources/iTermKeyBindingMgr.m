@@ -661,6 +661,12 @@ exit:
     int retCode = -1;
 
     if ([iTermKeyBindingMgr inActionMode]) {
+        if ([iTermKeyBindingMgr actionModeShouldIgnoreNextCommand]) {
+            if (text) {
+                *text = nil;
+            }
+            return -1;
+        }
         keyString = [NSString stringWithFormat:@"%@-actionMode", keyString];
     }
 
