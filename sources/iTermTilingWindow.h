@@ -33,7 +33,7 @@
 @property BOOL focused;
 - (id)initForTerminal:(PseudoTerminal *)terminal;
 - (void)adjustToFrame;
-- (void)focus;
+- (void)focusAndMakeKey:(BOOL)key;
 - (void)unfocus;
 
 @end

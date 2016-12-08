@@ -24,7 +24,7 @@
 - (void)addWindow:(iTermTilingWindow *)window;
 - (void)removeWindow:(iTermTilingWindow *)window;
 - (void)unfocusFrontWindow;
-- (void)focusFrontWindow;
+- (void)focusFrontWindowAndMakeKey:(BOOL)key;
 - (void)cycleWindowsForward:(BOOL)forward;
 - (void)cycleLastWindow;
 - (CGRect)rectForWindow;

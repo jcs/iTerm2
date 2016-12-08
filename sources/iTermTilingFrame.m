@@ -41,16 +41,18 @@
 {
         [window setFrame:nil];
         [[self windows] removeObject:window];
+        
+        [self focusFrontWindowAndMakeKey:[[[self manager] currentFrame] isEqualTo:self]];
 }
 
-- (void)focusFrontWindow
+- (void)focusFrontWindowAndMakeKey:(BOOL)key
 {
         if ([[self windows] count] == 0)
                 return;
         
         iTermTilingWindow *win = [[self windows] objectAtIndex:0];
         if (win)
-                [win focus];
+                [win focusAndMakeKey:(BOOL)key];
 }
 
 - (void)unfocusFrontWindow
@@ -80,13 +82,13 @@
                 iTermTilingWindow *w = [[self windows] objectAtIndex:0];
                 [[self windows] removeObjectAtIndex:0];
                 [[self windows] addObject:w];
-                [self focusFrontWindow];
+                [self focusFrontWindowAndMakeKey:YES];
         } else {
                 /* previous cycle, move last window onto the front */
                 iTermTilingWindow *w = [[self windows] lastObject];
                 [[self windows] removeLastObject];
                 [[self windows] insertObject:w atIndex:0];
-                [self focusFrontWindow];
+                [self focusFrontWindowAndMakeKey:YES];
         }
 }
 
@@ -105,7 +107,7 @@
         iTermTilingWindow *w = [[self windows] objectAtIndex:0];
         [[self windows] removeObjectAtIndex:0];
         [[self windows] insertObject:w atIndex:1];
-        [self focusFrontWindow];
+        [self focusFrontWindowAndMakeKey:YES];
 }
 
 - (void)setRect:(CGRect)_rect

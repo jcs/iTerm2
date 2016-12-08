@@ -120,7 +120,7 @@
                         [[self frames] removeObjectAtIndex:i];
                         [[self frames] insertObject:f atIndex:0];
                         
-                        [f focusFrontWindow];
+                        [f focusFrontWindowAndMakeKey:YES];
                         
                         [iTermTilingToast showToastWithMessage:@"Current Frame" inFrame:f];
 

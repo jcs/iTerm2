@@ -18,7 +18,9 @@
 {
         self = [super initWithFrame:frame];
         self.tilingWindow = tilingWindow_;
-        
+        self.borderWidth = 1;
+        self.borderColor = [NSColor clearColor];
+
         return self;
 }
 
@@ -28,6 +30,11 @@
         [self.borderColor set];
         [bpath setLineWidth:self.borderWidth];
         [bpath stroke];
+}
+
+/* let PTYTextView see first click to start selecting text */
+- (BOOL)acceptsFirstMouse:(NSEvent *)event {
+        return YES;
 }
 
 @end
@@ -54,17 +61,15 @@
                                                      name:NSWindowDidMoveNotification
                                                    object:[_terminal window]];
         [[NSNotificationCenter defaultCenter] addObserver:self
-                                                 selector:@selector(lostFocus:)
+                                                 selector:@selector(lostFocusNotification:)
                                                      name:NSWindowDidResignKeyNotification
                                                    object:[_terminal window]];
         [[NSNotificationCenter defaultCenter] addObserver:self
-                                                 selector:@selector(gainedFocus:)
+                                                 selector:@selector(gainedFocusNotification:)
                                                      name:NSWindowDidBecomeKeyNotification
                                                    object:[_terminal window]];
-        
+
         self.border = [[iTermTilingWindowBorder alloc] initWithFrame:NSMakeRect(0, 0, terminal.windowFrame.size.width, terminal.windowFrame.size.height) forTilingWindow:self];
-        self.border.borderWidth = 5;
-        self.border.borderColor = [NSColor greenColor];
         [[[[self terminal] window] contentView] addSubview:self.border];
 
         return self;
@@ -103,28 +108,27 @@
         [[self frame] redraw];
 }
 
-- (void)lostFocus:(NSNotification *)notification
+- (void)lostFocusNotification:(NSNotification *)notification
 {
         self.focused = NO;
-        //[[self frame] redraw];
 }
 
-- (void)gainedFocus:(NSNotification *)notification
+- (void)gainedFocusNotification:(NSNotification *)notification
 {
-        self.focused = YES;
-        
-#if 0   /* XXX: this swaps frames when the last terminal in a frame exits, which is not desired */
-        if (![[[[self frame] manager] currentFrame] isEqualTo:[self frame]]) {
-                [[[self frame] manager] setCurrentFrame:[self frame]];
+        if ([[[[self frame] manager] currentFrame] isEqualTo:[self frame]]) {
+                self.focused = YES;
+        } else {
+                [[[self terminal] window] resignKeyWindow];
+                [[[[self frame] manager] currentFrame] focusFrontWindowAndMakeKey:YES];
         }
-#endif
-        
-        //[[self frame] redraw];
 }
 
-- (void)focus
+- (void)focusAndMakeKey:(BOOL)key
 {
-        [[[self terminal] window] makeKeyAndOrderFront:nil];
+        if (key)
+                [[[self terminal] window] makeKeyAndOrderFront:nil];
+        else
+                [[[self terminal] window] orderFront:nil];
 }
 
 - (void)unfocus
