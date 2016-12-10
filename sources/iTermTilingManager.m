@@ -318,18 +318,34 @@
                 NSLog(@"[TilingManager] cycle last window");
                 [[self currentFrame] cycleLastWindow];
                 break;
-        case KEY_ACTION_TILING_SWAP_LEFT:
+        case KEY_ACTION_TILING_SWAP_LEFT: {
                 NSLog(@"[TilingManager] swap left");
+                iTermTilingFrame *swap = [self findFrameInDirection:iTermTilingFrameDirectionLeft ofFrame:[self currentFrame]];
+                if (swap)
+                        [[self currentFrame] swapWithFrame:swap];
                 break;
-        case KEY_ACTION_TILING_SWAP_RIGHT:
+        }
+        case KEY_ACTION_TILING_SWAP_RIGHT: {
                 NSLog(@"[TilingManager] swap right");
+                iTermTilingFrame *swap = [self findFrameInDirection:iTermTilingFrameDirectionRight ofFrame:[self currentFrame]];
+                if (swap)
+                        [[self currentFrame] swapWithFrame:swap];
                 break;
-        case KEY_ACTION_TILING_SWAP_UP:
+        }
+        case KEY_ACTION_TILING_SWAP_UP: {
                 NSLog(@"[TilingManager] swap up");
+                iTermTilingFrame *swap = [self findFrameInDirection:iTermTilingFrameDirectionAbove ofFrame:[self currentFrame]];
+                if (swap)
+                        [[self currentFrame] swapWithFrame:swap];
                 break;
-        case KEY_ACTION_TILING_SWAP_DOWN:
+        }
+        case KEY_ACTION_TILING_SWAP_DOWN: {
                 NSLog(@"[TilingManager] swap down");
+                iTermTilingFrame *swap = [self findFrameInDirection:iTermTilingFrameDirectionBelow ofFrame:[self currentFrame]];
+                if (swap)
+                        [[self currentFrame] swapWithFrame:swap];
                 break;
+        }
 
         default:
                 NSLog(@"[TilingManager] other key pressed while in action mode: %d", action);

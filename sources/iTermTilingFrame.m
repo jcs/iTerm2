@@ -65,6 +65,15 @@
                 [win unfocus];
 }
 
+- (void)swapWithFrame:(iTermTilingFrame *)toFrame
+{
+        CGRect torect = [toFrame rect];
+        CGRect thisrect = [self rect];
+        [self setRect:torect];
+        [toFrame setRect:thisrect];
+        [toFrame focusFrontWindowAndMakeKey:YES];
+}
+
 - (void)cycleWindowsForward:(BOOL)forward
 {
         if ([[self windows] count] == 0) {
