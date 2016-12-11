@@ -86,7 +86,7 @@
     // See issue 4957 for the Monaco hack.
     CGFloat extraDescender = 0;
     if (![font_.fontName isEqualToString:@"Monaco"]) {
-        extraDescender = 0.5;
+        extraDescender = 1;
     }
     CGFloat descender = self.font.descender + extraDescender;
     return descender;
