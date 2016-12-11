@@ -11,18 +11,19 @@
 #import "iTermTilingManager.h"
 #import "iTermTilingWindow.h"
 
-@class iTermTilingWindow;
 @class iTermTilingManager;
+@class iTermTilingWindow;
 
 @interface iTermTilingFrame : NSObject
 
 @property (retain) iTermTilingManager *manager;
 @property (assign, nonatomic) CGRect rect;
-@property (retain) NSMutableArray<iTermTilingWindow *> *windows;
+@property (retain) NSWindow *numberLabelHolder;
+@property (retain) NSTextView *numberLabel;
 
 - (id)initWithRect:(CGRect)_rect andManager:(iTermTilingManager *)_manager;
-- (void)addWindow:(iTermTilingWindow *)window;
-- (void)removeWindow:(iTermTilingWindow *)window;
+- (NSArray<iTermTilingWindow *> *)windows;
+- (iTermTilingWindow *)frontWindow;
 - (void)unfocusFrontWindow;
 - (void)focusFrontWindowAndMakeKey:(BOOL)key;
 - (void)swapWithFrame:(iTermTilingFrame *)toFrame;

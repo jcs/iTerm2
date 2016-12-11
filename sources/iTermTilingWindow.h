@@ -11,8 +11,8 @@
 #import "PseudoTerminal.h"
 #import "iTermTilingFrame.h"
 
-@class iTermTilingFrame;
 @class iTermTilingWindow;
+@class iTermTilingFrame;
 
 @interface iTermTilingWindowBorder : NSView
 
@@ -27,11 +27,13 @@
 
 @interface iTermTilingWindow : NSObject
 
-@property (nonatomic, retain) PseudoTerminal<iTermWeakReference> *terminal;
-@property (nonatomic, retain) iTermTilingFrame *frame;
+@property (retain) PseudoTerminal<iTermWeakReference> *terminal;
+@property (retain) iTermTilingFrame *frame;
 @property (retain) iTermTilingWindowBorder *border;
 @property BOOL focused;
-- (id)initForTerminal:(PseudoTerminal *)terminal;
+@property int number;
+
+- (id)initForTerminal:(PseudoTerminal *)terminal frame:(iTermTilingFrame *)frame number:(int)number;
 - (void)adjustToFrame;
 - (void)focusAndMakeKey:(BOOL)key;
 - (void)unfocus;

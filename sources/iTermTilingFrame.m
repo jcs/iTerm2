@@ -12,7 +12,8 @@
 @implementation iTermTilingFrame
 
 @synthesize rect;
-@synthesize windows;
+@synthesize numberLabelHolder;
+@synthesize numberLabel;
 
 - (id)initWithRect:(CGRect)_rect andManager:(iTermTilingManager *)manager
 {
@@ -21,7 +22,24 @@
         
         self.manager = manager;
         self.rect = _rect;
-        self.windows = [[NSMutableArray alloc] init];
+        
+        self.numberLabelHolder = [[NSWindow alloc] initWithContentRect:_rect styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreRetained defer:YES];
+        self.numberLabelHolder.opaque = NO;
+        self.numberLabelHolder.backgroundColor = [NSColor clearColor];
+        self.numberLabelHolder.ignoresMouseEvents = YES;
+        self.numberLabelHolder.hasShadow = NO;
+        self.numberLabelHolder.level = NSFloatingWindowLevel;
+
+        self.numberLabel = [[NSTextView alloc] init];
+        self.numberLabel.textColor = [NSColor textColor];
+        self.numberLabel.string = @"";
+        self.numberLabel.textContainerInset = NSMakeSize(5, 5);
+        self.numberLabel.textContainer.maximumNumberOfLines = 1;
+        self.numberLabel.editable = NO;
+        self.numberLabel.selectable = NO;
+        self.numberLabel.horizontallyResizable = YES;
+        self.numberLabel.verticallyResizable = NO;
+        [self.numberLabelHolder.contentView addSubview:self.numberLabel];
         
         return self;
 }
@@ -31,36 +49,40 @@
         return [NSString stringWithFormat:@"iTermTilingFrame: %p rect=%@ rectForWindow=%@ windows=%lu", self, NSStringFromRect(self.rect), NSStringFromRect(self.rectForWindow), (unsigned long)[[self windows] count]];
 }
 
-- (void)addWindow:(iTermTilingWindow *)window
+- (NSArray<iTermTilingWindow *> *)windows
 {
-        [window setFrame:self];
-        [[self windows] insertObject:window atIndex:0];
+        NSMutableArray *wins = [[NSMutableArray alloc] init];
+        
+        for (int i = 0; i < [[[self manager] windows] count]; i++) {
+                iTermTilingWindow *w = [[[self manager] windows] objectAtIndex:i];
+                if ([[w frame] isEqualTo:self])
+                        [wins addObject:w];
+        }
+        
+        return [NSArray arrayWithArray:wins];
 }
 
-- (void)removeWindow:(iTermTilingWindow *)window
+- (iTermTilingWindow *)frontWindow
 {
-        [window setFrame:nil];
-        [[self windows] removeObject:window];
+        if ([[self windows] count] > 0) {
+                iTermTilingWindow *win = [[self windows] objectAtIndex:0];
+                if (win)
+                        return win;
+        }
         
-        [self focusFrontWindowAndMakeKey:[[[self manager] currentFrame] isEqualTo:self]];
+        return nil;
 }
 
 - (void)focusFrontWindowAndMakeKey:(BOOL)key
 {
-        if ([[self windows] count] == 0)
-                return;
-        
-        iTermTilingWindow *win = [[self windows] objectAtIndex:0];
+        iTermTilingWindow *win = [self frontWindow];
         if (win)
                 [win focusAndMakeKey:(BOOL)key];
 }
 
 - (void)unfocusFrontWindow
 {
-        if ([[self windows] count] == 0)
-                return;
-        
-        iTermTilingWindow *win = [[self windows] objectAtIndex:0];
+        iTermTilingWindow *win = [self frontWindow];
         if (win)
                 [win unfocus];
 }
@@ -81,42 +103,62 @@
                 return;
         }
         
-        if ([[self windows] count] == 1) {
+        NSArray *wins = [[self manager] windowsNotInFront];
+        if ([wins count] == 0) {
                 [iTermTilingToast showToastWithMessage:@"No other windows" inFrame:self];
                 return;
         }
         
+        if (![[self manager] startAdjustingFrames])
+                return;
+        
+        iTermTilingWindow *cur = [[[self manager] windows] objectAtIndex:0];
+        [[[self manager] windows] removeObject:cur];
+        
+        iTermTilingWindow *new = nil;
         if (forward) {
                 /* normal cycle, shift first window onto the end of the stack */
-                iTermTilingWindow *w = [[self windows] objectAtIndex:0];
-                [[self windows] removeObjectAtIndex:0];
-                [[self windows] addObject:w];
-                [self focusFrontWindowAndMakeKey:YES];
+                new = [wins objectAtIndex:0];
         } else {
                 /* previous cycle, move last window onto the front */
-                iTermTilingWindow *w = [[self windows] lastObject];
-                [[self windows] removeLastObject];
-                [[self windows] insertObject:w atIndex:0];
-                [self focusFrontWindowAndMakeKey:YES];
+                new = [wins lastObject];
         }
+        
+        [[[self manager] windows] removeObject:new];
+        [new setFrame:self];
+        [[[self manager] windows] insertObject:new atIndex:0];
+        
+        [[[self manager] windows] addObject:cur];
+        
+        [self focusFrontWindowAndMakeKey:YES];
+        
+        [[self manager] finishAdjustingFrames];
 }
 
 - (void)cycleLastWindow
 {
-        if ([[self windows] count] == 0) {
+        if ([[[self manager] windows] count] == 0) {
                 [iTermTilingToast showToastWithMessage:@"No managed windows" inFrame:self];
                 return;
         }
         
-        if ([[self windows] count] == 1) {
+        NSArray *wins = [[self manager] windowsNotInFront];
+        if ([wins count] == 0) {
                 [iTermTilingToast showToastWithMessage:@"No other windows" inFrame:self];
                 return;
         }
-        
-        iTermTilingWindow *w = [[self windows] objectAtIndex:0];
-        [[self windows] removeObjectAtIndex:0];
-        [[self windows] insertObject:w atIndex:1];
+
+        if (![[self manager] startAdjustingFrames])
+                return;
+
+        /* bring the first window not foremost in another frame to the forefront of this one */
+        iTermTilingWindow *w = [wins objectAtIndex:0];
+        [[[self manager] windows] removeObject:w];
+        [[[self manager] windows] insertObject:w atIndex:0];
+        [w setFrame:self];
         [self focusFrontWindowAndMakeKey:YES];
+        
+        [[self manager] finishAdjustingFrames];
 }
 
 - (void)setRect:(CGRect)_rect
@@ -130,6 +172,25 @@
         [[self windows] enumerateObjectsUsingBlock:^(iTermTilingWindow * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
                 [obj adjustToFrame];
         }];
+        
+        if ([[self manager] showingFrameNumbers]) {
+                [[self numberLabel] setString:[NSString stringWithFormat:@"%lu", [[[self manager] frames] indexOfObject:self]]];
+
+                CGRect textRect = [[self numberLabel].string boundingRectWithSize:CGSizeMake(CGFLOAT_MAX, CGFLOAT_MAX) options:(NSStringDrawingUsesLineFragmentOrigin|NSStringDrawingUsesFontLeading) attributes:nil context:nil];
+                textRect = NSMakeRect(0, 0, ceilf(([[self numberLabel] textContainerInset].width * 2) + textRect.size.width + 10), ceilf(textRect.size.height));
+
+                [[self numberLabel] setFrame:NSMakeRect([[self manager] borderWidth], [[self manager] borderWidth], textRect.size.width, textRect.size.height + ([[self manager] borderWidth] * 2))];
+                
+                [[self numberLabelHolder] setFrame:NSMakeRect(self.rect.origin.x,
+                                                              self.rect.origin.y + self.rect.size.height - [[self numberLabel] frame].size.height - ([[self manager] borderWidth] * 2),
+                                                              [[self numberLabel] frame].size.width + ([[self manager] borderWidth] * 2),
+                                                              [[self numberLabel] frame].size.height + ([[self manager] borderWidth] * 2))
+                                           display:YES];
+                [[self numberLabelHolder] setBackgroundColor:[[self manager] activeFrameBorderColor]];
+                [[self numberLabelHolder] orderFrontRegardless];
+        } else {
+                [[self numberLabelHolder] orderOut:nil];
+        }
 }
 
 - (CGRect)rectForWindow

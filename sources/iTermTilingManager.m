@@ -18,6 +18,7 @@
 @implementation iTermTilingManager {
         BOOL adjustingFrames;
         NSEvent *ignoreEvent;
+        int winNumbers;
 }
 
 + (instancetype)sharedInstance {
@@ -38,9 +39,12 @@
         
         adjustingFrames = NO;
         
+        self.windows = [[NSMutableArray alloc] init];
+        winNumbers = 0;
+        
         /* TODO: get these from preferences */
-        self.gap = 12;
-        self.borderWidth = 8;
+        self.gap = 16;
+        self.borderWidth = 4;
         self.activeFrameBorderColor = [NSColor orangeColor];
         self.inactiveFrameBorderColor = [NSColor grayColor];
 
@@ -55,6 +59,57 @@
                                                    object:nil];
         
         return self;
+}
+
+- (void)dealloc
+{
+        [[NSNotificationCenter defaultCenter] removeObserver:self];
+        [super dealloc];
+}
+
+- (void)dumpFrames
+{
+        NSLog(@"==========================================");
+        
+        for (int i = 0; i < [[self frames] count]; i++) {
+                NSLog(@"frame[%d] %@", i, NSStringFromRect([[[self frames] objectAtIndex:i] rect]));
+                
+                for (int j = 0; j < [[self windows] count]; j++) {
+                        iTermTilingWindow *win = [[self windows] objectAtIndex:j];
+                        
+                        if ([[win frame] isEqualTo:[[self frames] objectAtIndex:i]]) {
+                                NSLog(@"frame[%d] window[%d]", i, [win number]);
+                        }
+                }
+        }
+        NSLog(@"==========================================");
+}
+
+- (void)terminalWindowCreated:(NSNotification *)notification
+{
+        if (![[[notification object] className] isEqualToString:@"PseudoTerminal"])
+                return;
+        
+        iTermTilingWindow *itw = [[iTermTilingWindow alloc] initForTerminal:(PseudoTerminal *)[notification object] frame:[self currentFrame] number:winNumbers++];
+        [[self windows] addObject:itw];
+        
+        [itw adjustToFrame];
+        
+        [self dumpFrames];
+}
+
+- (void)removeWindow:(iTermTilingWindow *)window
+{
+        iTermTilingFrame *fromFrame = [window frame];
+        [window setFrame:nil];
+        [[self windows] removeObject:window];
+
+        if ([[self windows] count] == 0)
+                winNumbers = 0;
+        else if ([window number] == winNumbers - 1)
+                winNumbers--;
+        
+        [fromFrame focusFrontWindowAndMakeKey:[[self currentFrame] isEqualTo:fromFrame]];
 }
 
 - (BOOL)startAdjustingFrames
@@ -73,31 +128,8 @@
 {
         [self redrawFrames];
         adjustingFrames = NO;
+        
         [self dumpFrames];
-}
-
-- (void)dealloc
-{
-        [[NSNotificationCenter defaultCenter] removeObserver:self];
-        [super dealloc];
-}
-
-- (void)dumpFrames
-{
-        NSLog(@"[TilingManager] ===================================================================");
-        NSLog(@"[TilingManager] frame dump:");
-        for (int i = 0; i < [self.frames count]; i++) {
-                iTermTilingFrame *f = [self.frames objectAtIndex:i];
-                
-                NSLog(@"[TilingManager] [Frame:%d] %@", i, f);
-                
-                for (int j = 0; j < [[f windows] count]; j++) {
-                        iTermTilingWindow *t = (iTermTilingWindow *)[[f windows] objectAtIndex:j];
-                        
-                        NSLog(@"[TilingManager] [Frame:%d] [Window:%d] %@", i, j, t);
-                }
-        }
-        NSLog(@"[TilingManager] ===================================================================");
 }
 
 - (iTermTilingFrame *)currentFrame
@@ -116,7 +148,7 @@
                 iTermTilingFrame *f = [self.frames objectAtIndex:i];
                 
                 if ([f isEqualTo:newCur]) {
-                        /* move the new current to the head of the line */
+                        /* move the new current frame to the head of the line */
                         [[self frames] removeObjectAtIndex:i];
                         [[self frames] insertObject:f atIndex:0];
                         
@@ -128,22 +160,14 @@
                 }
         }
         
+        /* move the new current frame's top window to the front of the window list */
+        iTermTilingWindow *w = [[self currentFrame] frontWindow];
+        if (w) {
+                [[self windows] removeObject:w];
+                [[self windows] insertObject:w atIndex:0];
+        }
+        
         [self finishAdjustingFrames];
-}
-
-- (void)terminalWindowCreated:(NSNotification *)notification
-{
-        if (![[[notification object] className] isEqualToString:@"PseudoTerminal"])
-                return;
-
-        iTermTilingWindow *itw = [[iTermTilingWindow alloc] initForTerminal:(PseudoTerminal *)[notification object]];
-
-        [[NSNotificationCenter defaultCenter] addObserver:self
-                                                 selector:@selector(terminalWindowClosing:)
-                                                     name:NSWindowWillCloseNotification
-                                                   object:[[itw terminal] window]];
-
-        [[self currentFrame] addWindow:itw];
 }
 
 - (iTermTilingWindow *)iTermTilingWindowForNSWindow:(NSWindow *)window
@@ -160,15 +184,6 @@
         
         NSLog(@"[TilingManager] can't find itw for window %@", window);
         return nil;
-}
-
-- (void)terminalWindowClosing:(NSNotification *)notification
-{
-        iTermTilingWindow *t = [self iTermTilingWindowForNSWindow:[notification object]];
-        if (t)
-                [[t frame] removeWindow:t];
-        
-        [self redrawFrames];
 }
 
 - (void)redrawFrames
@@ -397,14 +412,13 @@
         iTermTilingFrame *dst = [[self frames] objectAtIndex:1];
 
         /* push this frame's windows onto the next frame */
-        for (int i = 0; i < [[cur windows] count]; i++) {
-                iTermTilingWindow *tw = [[cur windows] objectAtIndex:i];
+        NSArray *wins = [cur windows];
+        for (int i = 0; i < [wins count]; i++) {
+                iTermTilingWindow *tw = [wins objectAtIndex:i];
                 [tw setFrame:dst];
-                [[dst windows] addObject:tw];
         }
-        [[cur windows] removeAllObjects];
         
-        [[self frames] removeObjectAtIndex:0];
+        [[self frames] removeObject:cur];
         
         [self resizeFrames];
         
@@ -517,6 +531,31 @@
 {
         self.showingFrameNumbers = NO;
         [self redrawFrames];
+}
+
+- (NSArray<iTermTilingWindow *> *)windowsInFront
+{
+        NSMutableArray *frontWins = [[NSMutableArray alloc] init];
+        for (int i = 0; i < [[self frames] count]; i++) {
+                iTermTilingWindow *w = [[[self frames] objectAtIndex:i] frontWindow];
+                if (w)
+                        [frontWins addObject:w];
+        }
+        
+        return [NSArray arrayWithArray:frontWins];
+}
+
+- (NSArray<iTermTilingWindow *> *)windowsNotInFront
+{
+        NSArray *frontWins = [self windowsInFront];
+        
+        NSMutableArray *wins = [[NSMutableArray alloc] init];
+        for (int i = 0; i < [[self windows] count]; i++) {
+                if (![frontWins containsObject:[[self windows] objectAtIndex:i]])
+                        [wins addObject:[[self windows] objectAtIndex:i]];
+        }
+        
+        return [NSArray arrayWithArray:wins];
 }
 
 @end

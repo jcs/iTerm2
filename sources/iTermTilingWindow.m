@@ -26,14 +26,19 @@
 
 - (void)drawRect:(NSRect)dirtyRect
 {
-        NSBezierPath *bpath = [NSBezierPath bezierPathWithRect:self.bounds];
+        int pad = 0;
+        if (self.borderWidth % 2 != 0)
+                pad++;
+        
+        NSBezierPath *bpath = [NSBezierPath bezierPathWithRect:NSMakeRect(floorf(self.borderWidth / 2), floorf(self.borderWidth / 2), self.bounds.size.width - self.borderWidth + pad, self.bounds.size.height - self.borderWidth + pad)];
         [self.borderColor set];
         [bpath setLineWidth:self.borderWidth];
         [bpath stroke];
 }
 
 /* let PTYTextView see first click to start selecting text */
-- (BOOL)acceptsFirstMouse:(NSEvent *)event {
+- (BOOL)acceptsFirstMouse:(NSEvent *)event
+{
         return YES;
 }
 
@@ -45,32 +50,39 @@
 @synthesize frame;
 @synthesize border;
 
-- (id)initForTerminal:(PseudoTerminal *)_terminal
+- (id)initForTerminal:(PseudoTerminal *)terminal_ frame:(iTermTilingFrame *)frame_ number:(int)number_
 {
         if (!(self = [super init]))
                 return nil;
         
-        self.terminal = (PseudoTerminal<iTermWeakReference> *)_terminal;
+        self.terminal = (PseudoTerminal<iTermWeakReference> *)terminal_;
         
+        self.border = [[iTermTilingWindowBorder alloc] initWithFrame:NSMakeRect(0, 0, terminal.windowFrame.size.width, terminal.windowFrame.size.height) forTilingWindow:self];
+        [[[[self terminal] window] contentView] addSubview:self.border];
+        
+        self.frame = frame_;
+        self.number = number_;
+        
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(terminalClosing:)
+                                                     name:NSWindowWillCloseNotification
+                                                   object:[terminal_ window]];
         [[NSNotificationCenter defaultCenter] addObserver:self
                                                  selector:@selector(resizeOrMoveNotification:)
                                                      name:NSWindowDidResizeNotification
-                                                   object:[_terminal window]];
+                                                   object:[terminal_ window]];
         [[NSNotificationCenter defaultCenter] addObserver:self
                                                  selector:@selector(resizeOrMoveNotification:)
                                                      name:NSWindowDidMoveNotification
-                                                   object:[_terminal window]];
+                                                   object:[terminal_ window]];
         [[NSNotificationCenter defaultCenter] addObserver:self
                                                  selector:@selector(lostFocusNotification:)
                                                      name:NSWindowDidResignKeyNotification
-                                                   object:[_terminal window]];
+                                                   object:[terminal_ window]];
         [[NSNotificationCenter defaultCenter] addObserver:self
                                                  selector:@selector(gainedFocusNotification:)
                                                      name:NSWindowDidBecomeKeyNotification
-                                                   object:[_terminal window]];
-
-        self.border = [[iTermTilingWindowBorder alloc] initWithFrame:NSMakeRect(0, 0, terminal.windowFrame.size.width, terminal.windowFrame.size.height) forTilingWindow:self];
-        [[[[self terminal] window] contentView] addSubview:self.border];
+                                                   object:[terminal_ window]];
 
         return self;
 }
@@ -81,9 +93,19 @@
         [super dealloc];
 }
 
+- (void)terminalClosing:(NSNotification *)notification
+{
+        [[[self frame] manager] removeWindow:self];
+}
+
 - (NSString *)description
 {
         return [NSString stringWithFormat:@"iTermTilingWindow: %p PseudoTerminal=%@", self, [self.terminal description]];
+}
+
+- (BOOL)isFrontMostInFrame
+{
+        return ([self isEqualTo:[[[self frame] windows] objectAtIndex:0]]);
 }
 
 - (void)adjustToFrame
@@ -99,7 +121,7 @@
                 [[self border] setBorderColor:[NSColor clearColor]];
         
         [[self border] setBorderWidth:[self.frame.manager borderWidth]];
-        [[self border] setFrame:NSMakeRect(0, 0, terminal.windowFrame.size.width, terminal.windowFrame.size.height)];
+        [[self border] setFrame:NSMakeRect(0, 0, self.terminal.windowFrame.size.width, self.terminal.windowFrame.size.height)];
         [[self border] setNeedsDisplay:YES];
 }
 
