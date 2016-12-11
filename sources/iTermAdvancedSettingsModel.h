@@ -156,9 +156,6 @@
 + (void)setTimeBetweenTips:(double)time;
 + (BOOL)openFileOverridesSendText;
 + (BOOL)useLayers;
-+ (BOOL)useColorfgbgFallback;
-+ (BOOL)promptForPasteWhenNotAtPrompt;
-+ (BOOL)performDNSLookups;
 + (int)terminalMargin;
 + (int)terminalVMargin;
 + (BOOL)useColorfgbgFallback;
