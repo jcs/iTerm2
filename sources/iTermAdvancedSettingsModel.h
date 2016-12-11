@@ -161,5 +161,9 @@
 + (BOOL)performDNSLookups;
 + (int)terminalMargin;
 + (int)terminalVMargin;
++ (BOOL)useColorfgbgFallback;
++ (BOOL)promptForPasteWhenNotAtPrompt;
++ (BOOL)performDNSLookups;
++ (BOOL)darkThemeHasBlackTitlebar;
 
 @end

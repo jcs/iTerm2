@@ -7009,6 +7009,10 @@ ITERM_WEAKLY_REFERENCEABLE
     }
 }
 
+- (void)screenSelectColorPresetNamed:(NSString *)name {
+    [self setColorsFromPresetNamed:name];
+}
+
 - (void)screenSetCurrentTabColor:(NSColor *)color {
     [self setTabColor:color];
     id<WindowControllerInterface> term = [_delegate parentWindow];
