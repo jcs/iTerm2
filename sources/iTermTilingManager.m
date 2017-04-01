@@ -35,8 +35,6 @@
         if (!(self = [super init]))
                 return nil;
         
-        NSLog(@"[TilingManager] starting up!");
-        
         adjustingFrames = NO;
         
         self.windows = [[NSMutableArray alloc] init];
@@ -182,7 +180,6 @@
                 }
         }
         
-        NSLog(@"[TilingManager] can't find itw for window %@", window);
         return nil;
 }
 
@@ -260,20 +257,17 @@
         case KEY_ACTION_TILING_HSPLIT:
         {
                 /* split the current frame into two, left and right */
-                NSLog(@"[TilingManager] horizontal split");
                 [self splitCurrentFrameHorizontally:YES];
                 break;
         }
         case KEY_ACTION_TILING_VSPLIT:
         {
                 /* split the current frame into two, top and bottom */
-                NSLog(@"[TilingManager] vertical split");
                 [self splitCurrentFrameHorizontally:NO];
                 break;
         }
         case KEY_ACTION_TILING_FOCUS_LEFT:
         {
-                NSLog(@"[TilingManager] focus left");
                 iTermTilingFrame *swap = [self findFrameInDirection:iTermTilingFrameDirectionLeft ofFrame:[self currentFrame]];
                 if (swap)
                         [self setCurrentFrame:swap];
@@ -281,7 +275,6 @@
         }
         case KEY_ACTION_TILING_FOCUS_RIGHT:
         {
-                NSLog(@"[TilingManager] focus right");
                 iTermTilingFrame *swap = [self findFrameInDirection:iTermTilingFrameDirectionRight ofFrame:[self currentFrame]];
                 if (swap)
                         [self setCurrentFrame:swap];
@@ -289,7 +282,6 @@
         }
         case KEY_ACTION_TILING_FOCUS_UP:
         {
-                NSLog(@"[TilingManager] focus up");
                 iTermTilingFrame *swap = [self findFrameInDirection:iTermTilingFrameDirectionAbove ofFrame:[self currentFrame]];
                 if (swap)
                         [self setCurrentFrame:swap];
@@ -297,65 +289,53 @@
         }
         case KEY_ACTION_TILING_FOCUS_DOWN:
         {
-                NSLog(@"[TilingManager] focus down");
                 iTermTilingFrame *swap = [self findFrameInDirection:iTermTilingFrameDirectionBelow ofFrame:[self currentFrame]];
                 if (swap)
                         [self setCurrentFrame:swap];
                 break;
         }
         case KEY_ACTION_TILING_FOCUS_LAST:
-                NSLog(@"[TilingManager] focus last");
                 if ([[self frames] count] > 1) {
                         [self setCurrentFrame:[[self frames] objectAtIndex:1]];
                 }
                 break;
         case KEY_ACTION_TILING_SHOW_FRAMES:
-                NSLog(@"[TilingManager] show frames");
                 [self showFrameNumbers];
                 break;
         case KEY_ACTION_TILING_REMOVE:
-                NSLog(@"[TilingManager] remove");
                 [self removeCurrentFrame];
                 break;
         case KEY_ACTION_TILING_NEW_WINDOW:
-                NSLog(@"[TilingManager] new window");
                 [[iTermController sharedInstance] launchBookmark:[[ProfileModel sharedInstance] defaultBookmark] inTerminal:nil];
                 break;
         case KEY_ACTION_TILING_CYCLE_NEXT:
-                NSLog(@"[TilingManager] cycle next window");
                 [[self currentFrame] cycleWindowsForward:YES];
                 break;
         case KEY_ACTION_TILING_CYCLE_PREV:
-                NSLog(@"[TilingManager] cycle prev window");
                 [[self currentFrame] cycleWindowsForward:NO];
                 break;
         case KEY_ACTION_TILING_CYCLE_LAST:
-                NSLog(@"[TilingManager] cycle last window");
                 [[self currentFrame] cycleLastWindow];
                 break;
         case KEY_ACTION_TILING_SWAP_LEFT: {
-                NSLog(@"[TilingManager] swap left");
                 iTermTilingFrame *swap = [self findFrameInDirection:iTermTilingFrameDirectionLeft ofFrame:[self currentFrame]];
                 if (swap)
                         [[self currentFrame] swapWithFrame:swap];
                 break;
         }
         case KEY_ACTION_TILING_SWAP_RIGHT: {
-                NSLog(@"[TilingManager] swap right");
                 iTermTilingFrame *swap = [self findFrameInDirection:iTermTilingFrameDirectionRight ofFrame:[self currentFrame]];
                 if (swap)
                         [[self currentFrame] swapWithFrame:swap];
                 break;
         }
         case KEY_ACTION_TILING_SWAP_UP: {
-                NSLog(@"[TilingManager] swap up");
                 iTermTilingFrame *swap = [self findFrameInDirection:iTermTilingFrameDirectionAbove ofFrame:[self currentFrame]];
                 if (swap)
                         [[self currentFrame] swapWithFrame:swap];
                 break;
         }
         case KEY_ACTION_TILING_SWAP_DOWN: {
-                NSLog(@"[TilingManager] swap down");
                 iTermTilingFrame *swap = [self findFrameInDirection:iTermTilingFrameDirectionBelow ofFrame:[self currentFrame]];
                 if (swap)
                         [[self currentFrame] swapWithFrame:swap];
