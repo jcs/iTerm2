@@ -674,7 +674,7 @@ exit:
         case kPTYTextViewSelectionExtensionUnitMark:
             return @"By Mark";
     }
-    ELog(@"Unrecognized selection movement unit %@", @(unit));
+    XLog(@"Unrecognized selection movement unit %@", @(unit));
     return @"";
 }
 
@@ -880,8 +880,6 @@ exit:
     [km setDictionary:settings];
 
     [bookmark setObject:km forKey:KEY_KEYBOARD_MAP];
-
-#warning Update touch bar
 }
 
 + (NSArray *)presetKeyMappingsNames {
@@ -1280,13 +1278,13 @@ exit:
 
     // Search for a keymapping with an action that references a profile.
     [keyboardMap enumerateKeysAndObjectsUsingBlock:^(id  _Nonnull key, id  _Nonnull keyMap, BOOL * _Nonnull stop) {
-        int action = [[keyMap objectForKey:@"Action"] intValue];
+        int action = [keyMap[@"Action"] intValue];
         if (action == KEY_ACTION_NEW_TAB_WITH_PROFILE ||
             action == KEY_ACTION_NEW_WINDOW_WITH_PROFILE ||
             action == KEY_ACTION_SPLIT_HORIZONTALLY_WITH_PROFILE ||
             action == KEY_ACTION_SPLIT_VERTICALLY_WITH_PROFILE ||
             action == KEY_ACTION_SET_PROFILE) {
-            NSString *referencedGuid = [keyMap objectForKey:@"Text"];
+            NSString *referencedGuid = keyMap[@"Text"];
             if ([referencedGuid isEqualToString:guid]) {
                 theKey = [[key copy] autorelease];
                 *stop = YES;
@@ -1308,7 +1306,7 @@ exit:
                 }
                 [iTermKeyBindingMgr removeMappingAtIndex:i inBookmark:mutableBookmark];
             } else {
-                ELog(@"Profile with guid %@ has key mapping referencing guid %@ with key %@ but I can't find it in sorted keys",
+                XLog(@"Profile with guid %@ has key mapping referencing guid %@ with key %@ but I can't find it in sorted keys",
                      bookmark[KEY_GUID],
                      guid,
                      keyToRemove);

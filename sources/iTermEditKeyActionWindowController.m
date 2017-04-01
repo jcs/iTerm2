@@ -515,12 +515,12 @@
             break;
     }
     self.ok = YES;
-    [NSApp endSheet:self.window];
+    [self.window.sheetParent endSheet:self.window];
 }
 
 - (IBAction)cancel:(id)sender {
     self.ok = NO;
-    [[NSApplication sharedApplication] endSheet:self.window];
+    [self.window.sheetParent endSheet:self.window];
 }
 
 @end

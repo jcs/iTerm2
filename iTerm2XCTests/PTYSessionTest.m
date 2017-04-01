@@ -19,7 +19,7 @@ typedef NSModalResponse (^WarningBlockType)(NSAlert *alert, NSString *identifier
 - (void)pasteString:(NSString *)theString
              slowly:(BOOL)slowly
    escapeShellChars:(BOOL)escapeShellChars
-           commands:(BOOL)commands
+           isUpload:(BOOL)isUpload
        tabTransform:(iTermTabTransformTags)tabTransform
        spacesPerTab:(int)spacesPerTab {
     self.string = theString;
@@ -122,7 +122,7 @@ typedef NSModalResponse (^WarningBlockType)(NSAlert *alert, NSString *identifier
             }
         }
         XCTAssert(found);
-        return -1;  /* deprecated NSAlertOtherReturn; */
+        return NSAlertThirdButtonReturn;
     };
     [_session pasteString:theString flags:0];
     XCTAssert([_warningIdentifiers containsObject:@"AboutToPasteTabsWithCancel"]);

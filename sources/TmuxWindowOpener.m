@@ -79,6 +79,8 @@ NSString *const kTmuxWindowOpenerWindowOptionStyleValueFullScreen = @"FullScreen
     [tabToUpdate_ release];
     [_windowOptions release];
     [_zoomed release];
+    [_tabColors release];
+
     [super dealloc];
 }
 
@@ -249,11 +251,10 @@ NSString *const kTmuxWindowOpenerWindowOptionStyleValueFullScreen = @"FullScreen
             [histories_ setObject:history forKey:wp];
         }
     } else {
-        [[NSAlert alertWithMessageText:@"Error: malformed history line from tmux."
-                         defaultButton:@"OK"
-                       alternateButton:@""
-                           otherButton:@""
-             informativeTextWithFormat:@"See Console.app for details"] runModal];
+        NSAlert *alert = [[[NSAlert alloc] init] autorelease];
+        alert.messageText = @"Error: malformed history line from tmux.";
+        alert.informativeText = @"See Console.app for details";
+        [alert runModal];
     }
     [self requestDidComplete];
 }
@@ -397,7 +398,6 @@ static int OctalValue(const char *bytes) {
                               withObject:[NSNumber numberWithInt:windowIndex_]];
         }
         if (isNewWindow) {
-#warning TODO Make iTermController not know about PseudoTerminal so I don't have to do this cast.
             [[iTermController sharedInstance] didFinishCreatingTmuxWindow:(PseudoTerminal *)term];
         }
     }
@@ -440,6 +440,10 @@ static int OctalValue(const char *bytes) {
         parseTree[kLayoutDictHotkeyKey] = hotkey;
     }
 
+    if (self.tabColors[n]) {
+        parseTree[kLayoutDictTabColorKey] = self.tabColors[n];
+    }
+    
     return nil;
 }
 

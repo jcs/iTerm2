@@ -129,11 +129,13 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
     BOOL ambiguousIsDoubleWidth_;
     NSMutableDictionary<NSNumber *, NSDictionary *> *_hotkeys;
     NSMutableSet<NSNumber *> *_paneIDs;  // existing pane IDs
+    NSMutableDictionary<NSNumber *, NSString *> *_tabColors;
 
     // Maps a window id string to a dictionary of window flags defined by TmuxWindowOpener (see the
     // top of its header file)
     NSMutableDictionary *_windowOpenerOptions;
     BOOL _manualOpenRequested;
+    BOOL _haveOpenendInitialWindows;
 }
 
 @synthesize gateway = gateway_;
@@ -155,6 +157,7 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
         pendingWindowOpens_ = [[NSMutableSet alloc] init];
         hiddenWindows_ = [[NSMutableSet alloc] init];
         _hotkeys = [[NSMutableDictionary alloc] init];
+        _tabColors = [[NSMutableDictionary alloc] init];
         self.clientName = [[TmuxControllerRegistry sharedInstance] uniqueClientNameBasedOn:clientName];
         _windowOpenerOptions = [[NSMutableDictionary alloc] init];
         [[TmuxControllerRegistry sharedInstance] setController:self forClient:_clientName];
@@ -178,6 +181,7 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
     [_sessionGuid release];
     [_windowOpenerOptions release];
     [_hotkeys release];
+    [_tabColors release];
     [super dealloc];
 }
 
@@ -215,6 +219,7 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
     windowOpener.windowOptions = _windowOpenerOptions;
     windowOpener.zoomed = windowFlags ? @([windowFlags containsString:@"Z"]) : nil;
     windowOpener.manuallyOpened = _manualOpenRequested;
+    windowOpener.tabColors = _tabColors;
     _manualOpenRequested = NO;
     if (![windowOpener openWindows:YES]) {
         [pendingWindowOpens_ removeObject:n];
@@ -239,6 +244,7 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
     windowOpener.selector = @selector(windowDidOpen:);
     windowOpener.windowOptions = _windowOpenerOptions;
     windowOpener.zoomed = zoomed;
+    windowOpener.tabColors = _tabColors;
     [windowOpener updateLayoutInTab:tab];
 }
 
@@ -246,7 +252,9 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
     self.sessionGuid = nil;
     self.sessionName = newSessionName;
     sessionId_ = sessionid;
+    _detaching = YES;
     [self closeAllPanes];
+    _detaching = NO;
     [self openWindowsInitial];
     [[NSNotificationCenter defaultCenter] postNotificationName:kTmuxControllerAttachedSessionDidChange
                                                         object:nil];
@@ -327,7 +335,7 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
         DLog(@"Consider record %@", record);
         int wid = [self windowIdFromString:[doc valueInRecord:record forField:@"window_id"]];
         if (hiddenWindows_ && [hiddenWindows_ containsObject:[NSNumber numberWithInt:wid]]) {
-            ELog(@"Don't open window %d because it was saved hidden.", wid);
+            XLog(@"Don't open window %d because it was saved hidden.", wid);
             haveHidden = YES;
             // Let the user know something is up.
             continue;
@@ -370,6 +378,7 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
     if (windowsToOpen.count == 0) {
         DLog(@"Did not open any windows so turn on accept notifications in tmux gateway");
         gateway_.acceptNotifications = YES;
+        [self sendInitialWindowsOpenedNotificationIfNeeded];
     }
 }
 
@@ -412,6 +421,7 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
     NSString *getAffinitiesCommand = [NSString stringWithFormat:@"show -v -q -t $%d @affinities", sessionId_];
     NSString *getOriginsCommand = [NSString stringWithFormat:@"show -v -q -t $%d @origins", sessionId_];
     NSString *getHotkeysCommand = [NSString stringWithFormat:@"show -v -q -t $%d @hotkeys", sessionId_];
+    NSString *getTabColorsCommand = [NSString stringWithFormat:@"show -v -q -t $%d @tab_colors", sessionId_];
     NSString *getHiddenWindowsCommand = [NSString stringWithFormat:@"show -v -q -t $%d @hidden", sessionId_];
     NSArray *commands = @[ [gateway_ dictionaryForCommand:getSessionGuidCommand
                                            responseTarget:self
@@ -441,6 +451,11 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
                            [gateway_ dictionaryForCommand:getHotkeysCommand
                                            responseTarget:self
                                          responseSelector:@selector(getHotkeysResponse:)
+                                           responseObject:nil
+                                                    flags:kTmuxGatewayCommandShouldTolerateErrors],
+                           [gateway_ dictionaryForCommand:getTabColorsCommand
+                                           responseTarget:self
+                                         responseSelector:@selector(getTabColorsResponse:)
                                            responseObject:nil
                                                     flags:kTmuxGatewayCommandShouldTolerateErrors],
                            [gateway_ dictionaryForCommand:listSessionsCommand
@@ -598,7 +613,7 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
     DLog(@"%@", [NSThread callStackSymbols]);
     assert(size.width > 0 && size.height > 0);
     lastSize_ = size;
-    NSString *listStr = [NSString stringWithFormat:@"list-windows -F \"#{window_id} #{window_layout}\""];
+    NSString *listStr = [NSString stringWithFormat:@"list-windows -F \"#{window_id} #{window_layout} #{window_flags}\""];
     NSString *setSizeCommand = [NSString stringWithFormat:@"set -t $%d @iterm2_size %d,%d",
                                 sessionId_, (int)size.width, (int)size.height];
     NSArray *commands = [NSArray arrayWithObjects:
@@ -631,6 +646,21 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
                responseTarget:self
              responseSelector:@selector(showWindowOptionsResponse:)];
     }
+}
+
+- (void)checkForUTF8 {
+    // Issue 5359
+    [gateway_ sendCommand:@"list-sessions -F \"\t\""
+           responseTarget:self
+         responseSelector:@selector(checkForUTF8Response:)
+           responseObject:nil
+                    flags:kTmuxGatewayCommandShouldTolerateErrors];
+}
+
+- (void)clearHistoryForWindowPane:(int)windowPane {
+    [gateway_ sendCommand:[NSString stringWithFormat:@"clear-history -t %%%d", windowPane]
+           responseTarget:nil
+         responseSelector:nil];
 }
 
 - (void)guessVersion {
@@ -674,6 +704,13 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
         [gateway_.minimumServerVersion compare:number] == NSOrderedAscending) {
         gateway_.minimumServerVersion = number;
         DLog(@"Increasing minimum server version to %@", number);
+    }
+}
+
+- (void)checkForUTF8Response:(NSString *)response {
+    if ([response containsString:@"_"]) {
+        [gateway_ abortWithErrorMessage:@"tmux is not in UTF-8 mode. Please pass the -u command line argument to tmux or change your LANG environment variable to end with “.UTF-8”."
+                                  title:@"UTF-8 Mode Not Detected"];
     }
 }
 
@@ -769,7 +806,7 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
     }
     NSString *resizeStr = [NSString stringWithFormat:@"resize-pane -%@ -t %%%d %d",
                            dir, wp, abs(amount)];
-    NSString *listStr = [NSString stringWithFormat:@"list-windows -F \"#{window_id} #{window_layout}\""];
+    NSString *listStr = [NSString stringWithFormat:@"list-windows -F \"#{window_id} #{window_layout} #{window_flags}\""];
     NSArray *commands = [NSArray arrayWithObjects:
                          [gateway_ dictionaryForCommand:resizeStr
                                          responseTarget:nil
@@ -874,6 +911,22 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
                     flags:kTmuxGatewayCommandShouldTolerateErrors];
 }
 
+- (void)setTabColorString:(NSString *)colorString forWindowPane:(int)windowPane {
+    if ([_tabColors[@(windowPane)] isEqualToString:colorString]) {
+        return;
+    }
+    _tabColors[@(windowPane)] = colorString;
+
+    // First get a list of existing panes so we can avoid setting tab colors for any nonexistent panes. Keeps the string from getting too long.
+    NSString *getPaneIDsCommand = [NSString stringWithFormat:@"list-panes -s -t $%d -F \"#{pane_id}\"", sessionId_];
+    [gateway_ sendCommand:getPaneIDsCommand
+           responseTarget:self
+         responseSelector:@selector(getPaneIDsResponseAndSetTabColors:)
+           responseObject:nil
+                    flags:kTmuxGatewayCommandShouldTolerateErrors];
+}
+
+
 - (void)getPaneIDsResponseAndSetHotkeys:(NSString *)response {
     [_paneIDs removeAllObjects];
     for (NSString *pane in [response componentsSeparatedByString:@"\n"]) {
@@ -882,6 +935,16 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
         }
     }
     [self sendCommandToSetHotkeys];
+}
+
+- (void)getPaneIDsResponseAndSetTabColors:(NSString *)response {
+    [_paneIDs removeAllObjects];
+    for (NSString *pane in [response componentsSeparatedByString:@"\n"]) {
+        if (pane.length) {
+            [_paneIDs addObject:@([[pane substringFromIndex:1] intValue])];
+        }
+    }
+    [self sendCommandToSetTabColors];
 }
 
 - (void)sendCommandToSetHotkeys {
@@ -894,8 +957,22 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
                     flags:0];
 }
 
+- (void)sendCommandToSetTabColors {
+    NSString *command = [NSString stringWithFormat:@"set -t $%d @tab_colors \"%@\"",
+                         sessionId_, [self.tabColorsString stringByEscapingQuotes]];
+    [gateway_ sendCommand:command
+           responseTarget:nil
+         responseSelector:nil
+           responseObject:nil
+                    flags:0];
+}
+
 - (NSDictionary *)hotkeyForWindowPane:(int)windowPane {
     return _hotkeys[@(windowPane)];
+}
+
+- (NSString *)tabColorStringForWindowPane:(int)windowPane {
+    return _tabColors[@(windowPane)];
 }
 
 - (void)killWindow:(int)window
@@ -1050,10 +1127,9 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
 - (void)listWindowsInSession:(NSString *)sessionName
                       target:(id)target
                     selector:(SEL)selector
-                      object:(id)object
-{
-    if (detached_) {
-        // Shouldn't happen, but better safe than sorry.
+                      object:(id)object {
+    if (detached_ || !object) {
+        // This can happen if you're not attached to a session.
         return;
     }
     NSString *listWindowsCommand = [NSString stringWithFormat:@"list-windows -F %@ -t \"%@\"",
@@ -1149,7 +1225,7 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
                responseTarget:self
              responseSelector:@selector(saveWindowOriginsResponse:)];
     }
-  [self getOriginsResponse:enc];
+    [self getOriginsResponse:enc];
 }
 
 - (void)saveWindowOriginsResponse:(NSString *)response
@@ -1336,6 +1412,17 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
     return [parts componentsJoinedByString:@" "];
 }
 
+- (NSString *)tabColorsString {
+    NSMutableArray *parts = [NSMutableArray array];
+    [_tabColors enumerateKeysAndObjectsUsingBlock:^(NSNumber * _Nonnull key, NSString * _Nonnull obj, BOOL * _Nonnull stop) {
+        if ([_paneIDs containsObject:key]) {
+            [parts addObject:[NSString stringWithFormat:@"%@=%@", key, obj]];
+        }
+    }];
+
+    return [parts componentsJoinedByString:@" "];
+}
+
 - (void)getHotkeysResponse:(NSString *)result {
     [_hotkeys removeAllObjects];
     if (result.length > 0) {
@@ -1349,6 +1436,24 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
                 NSDictionary *dict = [iTermShortcut dictionaryForShortString:shortString];
                 if (dict) {
                     _hotkeys[@(wp.intValue)] = dict;
+                }
+            }
+        }
+    }
+}
+
+- (void)getTabColorsResponse:(NSString *)result {
+    [_tabColors removeAllObjects];
+    if (result.length > 0) {
+        [_tabColors removeAllObjects];
+        NSArray *parts = [result componentsSeparatedByString:@" "];
+        for (NSString *part in parts) {
+            NSInteger equals = [part rangeOfString:@"="].location;
+            if (equals != NSNotFound && equals + 1 < part.length) {
+                NSString *wp = [part substringToIndex:equals];
+                NSString *colorString = [part substringFromIndex:equals + 1];
+                if (colorString && wp.length) {
+                    _tabColors[@(wp.intValue)] = colorString;
                 }
             }
         }
@@ -1595,6 +1700,16 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
         [[term window] setFrameOrigin:[p pointValue]];
     }
     [self saveAffinities];
+    if (pendingWindowOpens_.count == 0) {
+        [self sendInitialWindowsOpenedNotificationIfNeeded];
+    }
+}
+
+- (void)sendInitialWindowsOpenedNotificationIfNeeded {
+    if (!_haveOpenendInitialWindows) {
+        [gateway_.delegate tmuxDidOpenInitialWindows];
+        _haveOpenendInitialWindows = YES;
+    }
 }
 
 - (void)setPartialWindowIdOrder:(NSArray *)partialOrder {

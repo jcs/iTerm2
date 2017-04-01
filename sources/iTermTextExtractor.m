@@ -9,12 +9,19 @@
 #import "iTermTextExtractor.h"
 #import "DebugLogging.h"
 #import "iTermPreferences.h"
+#import "iTermURLStore.h"
 #import "NSStringITerm.h"
 #import "NSMutableAttributedString+iTerm.h"
 #import "RegexKitLite.h"
 #import "PreferencePanel.h"
 #import "SmartMatch.h"
 #import "SmartSelectionController.h"
+
+typedef NS_ENUM(NSUInteger, iTermAlphaNumericDefinition) {
+    iTermAlphaNumericDefinitionNarrow,
+    iTermAlphaNumericDefinitionUserDefined,
+    iTermAlphaNumericDefinitionUnixCommands,
+};
 
 // Must find at least this many divider chars in a row for it to count as a divider.
 static const int kNumCharsToSearchForDivider = 8;
@@ -118,7 +125,7 @@ const NSInteger kUnlimitedMaximumWordLength = NSIntegerMax;
                               if (++iterations == maxLength) {
                                   return YES;
                               }
-                              iTermTextExtractorClass newClass = [self classForCharacter:theChar broadDefinitionOfAlphanumeric:NO];
+                              iTermTextExtractorClass newClass = [self classForCharacter:theChar definitionOfAlphanumeric:iTermAlphaNumericDefinitionUnixCommands];
                               if (newClass == kTextExtractorClassWord) {
                                   foundWord = YES;
                                   if (theChar.complexChar ||
@@ -153,7 +160,7 @@ const NSInteger kUnlimitedMaximumWordLength = NSIntegerMax;
                                    if (++iterations == maxLength) {
                                        return YES;
                                    }
-                                   iTermTextExtractorClass newClass = [self classForCharacter:theChar broadDefinitionOfAlphanumeric:NO];
+                                   iTermTextExtractorClass newClass = [self classForCharacter:theChar definitionOfAlphanumeric:iTermAlphaNumericDefinitionUnixCommands];
                                    if (newClass == kTextExtractorClassWord) {
                                        foundWord = YES;
                                        if (theChar.complexChar ||
@@ -183,6 +190,48 @@ const NSInteger kUnlimitedMaximumWordLength = NSIntegerMax;
     } else {
         return nil;
     }
+}
+
+- (NSURL *)urlOfHypertextLinkAt:(VT100GridCoord)coord urlId:(out NSString **)urlId {
+    screen_char_t c = [self characterAt:coord];
+    *urlId = [[iTermURLStore sharedInstance] paramWithKey:@"id" forCode:c.urlCode];
+    return [[iTermURLStore sharedInstance] urlForCode:c.urlCode];
+}
+
+- (VT100GridWindowedRange)rangeOfCoordinatesAround:(VT100GridCoord)origin
+                                   maximumDistance:(int)maximumDistance
+                                       passingTest:(BOOL(^)(screen_char_t *c, VT100GridCoord coord))block {
+    VT100GridCoord coord = origin;
+    VT100GridCoord previousCoord = origin;
+    coord = [self predecessorOfCoord:coord];
+    screen_char_t c = [self characterAt:coord];
+    int distanceLeft = maximumDistance;
+    while (distanceLeft > 0 && !VT100GridCoordEquals(coord, previousCoord) && block(&c, coord)) {
+        previousCoord = coord;
+        coord = [self predecessorOfCoord:coord];
+        c = [self characterAt:coord];
+        distanceLeft--;
+    }
+
+    VT100GridWindowedRange range;
+    range.columnWindow = _logicalWindow;
+    range.coordRange.start = previousCoord;
+
+    coord = origin;
+    previousCoord = origin;
+    coord = [self successorOfCoord:coord];
+    c = [self characterAt:coord];
+    distanceLeft = maximumDistance;
+    while (distanceLeft > 0 && !VT100GridCoordEquals(coord, previousCoord) && block(&c, coord)) {
+        previousCoord = coord;
+        coord = [self successorOfCoord:coord];
+        c = [self characterAt:coord];
+        distanceLeft--;
+    }
+
+    range.coordRange.end = coord;
+
+    return range;
 }
 
 - (VT100GridWindowedRange)rangeForWordAt:(VT100GridCoord)location
@@ -504,7 +553,7 @@ const NSInteger kUnlimitedMaximumWordLength = NSIntegerMax;
 
 - (BOOL)isWhitelistedAlphanumericAtCoord:(VT100GridCoord)coord {
     screen_char_t theChar = [self characterAt:coord];
-    return [self characterShouldBeTreatedAsAlphanumeric:ScreenCharToStr(&theChar) broadDefinitionOfAlphanumeric:YES];
+    return [self characterShouldBeTreatedAsAlphanumeric:ScreenCharToStr(&theChar) definitionOfAlphanumeric:iTermAlphaNumericDefinitionUserDefined];
 }
 
 - (NSString *)stringForCharacter:(screen_char_t)theChar {
@@ -645,11 +694,11 @@ const NSInteger kUnlimitedMaximumWordLength = NSIntegerMax;
 
 // Returns the class for a character.
 - (iTermTextExtractorClass)classForCharacter:(screen_char_t)theCharacter {
-    return [self classForCharacter:theCharacter broadDefinitionOfAlphanumeric:YES];
+    return [self classForCharacter:theCharacter definitionOfAlphanumeric:iTermAlphaNumericDefinitionUserDefined];
 }
 
 - (iTermTextExtractorClass)classForCharacter:(screen_char_t)theCharacter
-               broadDefinitionOfAlphanumeric:(BOOL)broadDefinitionOfAlphanumeric {
+                    definitionOfAlphanumeric:(iTermAlphaNumericDefinition)definition {
     if (!theCharacter.complexChar) {
         if (theCharacter.code == TAB_FILLER) {
             return kTextExtractorClassWhitespace;
@@ -670,7 +719,7 @@ const NSInteger kUnlimitedMaximumWordLength = NSIntegerMax;
     }
 
     if ([self characterIsAlphanumeric:asString] ||
-        [self characterShouldBeTreatedAsAlphanumeric:asString broadDefinitionOfAlphanumeric:broadDefinitionOfAlphanumeric]) {
+        [self characterShouldBeTreatedAsAlphanumeric:asString definitionOfAlphanumeric:definition]) {
         return kTextExtractorClassWord;
     }
 
@@ -683,14 +732,20 @@ const NSInteger kUnlimitedMaximumWordLength = NSIntegerMax;
 }
 
 - (BOOL)characterShouldBeTreatedAsAlphanumeric:(NSString *)characterAsString
-                 broadDefinitionOfAlphanumeric:(BOOL)broadDefinitionOfAlphanumeric {
-    if (broadDefinitionOfAlphanumeric) {
-        NSRange range = [[iTermPreferences stringForKey:kPreferenceKeyCharactersConsideredPartOfAWordForSelection]
-                            rangeOfString:characterAsString];
-        return (range.length == characterAsString.length);
-    } else {
-        // The narrow definition only allows hyphen.
-        return [characterAsString isEqualToString:@"-"];
+                      definitionOfAlphanumeric:(iTermAlphaNumericDefinition)definition {
+    switch (definition) {
+        case iTermAlphaNumericDefinitionUserDefined: {
+            NSRange range = [[iTermPreferences stringForKey:kPreferenceKeyCharactersConsideredPartOfAWordForSelection]
+                             rangeOfString:characterAsString];
+            return (range.length == characterAsString.length);
+        }
+        case iTermAlphaNumericDefinitionUnixCommands: {
+            NSRange range = [@"_-" rangeOfString:characterAsString];
+            return (range.length == characterAsString.length);
+        }
+        case iTermAlphaNumericDefinitionNarrow:
+            // The narrow definition only allows hyphen.
+            return [characterAsString isEqualToString:@"-"];
     }
 }
 
@@ -1377,10 +1432,10 @@ const NSInteger kUnlimitedMaximumWordLength = NSIntegerMax;
         return !(c == 0 || c == ' ');
     }
     if (respectContinuations) {
-        return (theLine[width].code == EOL_SOFT ||
+        return (theLine[width].code != EOL_HARD ||
                 (theLine[width - 1].code == '\\' && !theLine[width - 1].complexChar));
     } else {
-        return theLine[width].code == EOL_SOFT;
+        return theLine[width].code != EOL_HARD;
     }
 }
 

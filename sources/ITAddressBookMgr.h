@@ -137,6 +137,8 @@
 #define KEY_NONASCII_ANTI_ALIASED  @"Non-ASCII Anti Aliased"
 #define KEY_BACKGROUND_IMAGE_LOCATION @"Background Image Location"
 #define KEY_BACKGROUND_IMAGE_TILED @"Background Image Is Tiled"
+#define KEY_ASCII_LIGATURES        @"ASCII Ligatures"
+#define KEY_NON_ASCII_LIGATURES    @"Non-ASCII Ligatures"
 
 // Terminal
 #define KEY_DISABLE_WINDOW_RESIZING           @"Disable Window Resizing"
@@ -148,7 +150,8 @@
 #define KEY_CLOSE_SESSIONS_ON_END             @"Close Sessions On End"
 #define KEY_TREAT_NON_ASCII_AS_DOUBLE_WIDTH   @"Non Ascii Double Width"  // DEPRECATED
 #define KEY_AMBIGUOUS_DOUBLE_WIDTH            @"Ambiguous Double Width"
-#define KEY_USE_HFS_PLUS_MAPPING              @"Use HFS Plus Mapping"
+#define KEY_USE_HFS_PLUS_MAPPING              @"Use HFS Plus Mapping"  // DEPRECATED
+#define KEY_UNICODE_NORMALIZATION             @"Unicode Normalization"
 #define KEY_SILENCE_BELL                      @"Silence Bell"
 #define KEY_VISUAL_BELL                       @"Visual Bell"
 #define KEY_FLASHING_BELL                     @"Flashing Bell"
@@ -230,8 +233,9 @@ extern NSString *const iTermUnicodeVersionDidChangeNotification;
 // Minimum time between sending anti-idle codes. "1" otherwise results in a flood.
 extern const NSTimeInterval kMinimumAntiIdlePeriod;
 
-// Special value for KEY_SPACE.
-extern NSInteger iTermProfileJoinsAllSpaces;
+// Special values for KEY_SPACE.
+extern const NSInteger iTermProfileJoinsAllSpaces;
+extern const NSInteger iTermProfileOpenInCurrentSpace;
 
 // The numerical values for each enum matter because they are used in
 // the UI as "tag" values for each select list item. They are also
@@ -286,6 +290,14 @@ typedef NS_ENUM(NSUInteger, iTermHotKeyModifierActivation) {
     iTermHotKeyModifierActivationShift = 1,
     iTermHotKeyModifierActivationOption = 2,
     iTermHotKeyModifierActivationCommand = 3,
+};
+
+// Do not renumber. These are tag numbers and also saved in prefs.
+typedef NS_ENUM(NSUInteger, iTermUnicodeNormalization) {
+    iTermUnicodeNormalizationNone = 0,
+    iTermUnicodeNormalizationNFC = 1,
+    iTermUnicodeNormalizationNFD = 2,
+    iTermUnicodeNormalizationHFSPlus = 3,
 };
 
 @interface ITAddressBookMgr : NSObject <NSNetServiceBrowserDelegate, NSNetServiceDelegate>

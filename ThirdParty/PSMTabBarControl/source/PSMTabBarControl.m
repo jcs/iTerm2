@@ -7,6 +7,8 @@
 //
 
 #import "PSMTabBarControl.h"
+
+#import "DebugLogging.h"
 #import "PSMTabBarCell.h"
 #import "PSMOverflowPopUpButton.h"
 #import "PSMRolloverButton.h"
@@ -100,8 +102,7 @@ const NSInteger kPSMStartResizeAnimation = 0;
 #pragma mark -
 #pragma mark Constructor/destructor
 
-- (id)initWithFrame:(NSRect)frame
-{
+- (id)initWithFrame:(NSRect)frame {
     self = [super initWithFrame:frame];
     if (self) {
         // Initialization
@@ -117,6 +118,7 @@ const NSInteger kPSMStartResizeAnimation = 0;
         _cellMinWidth = 100;
         _cellMaxWidth = 280;
         _cellOptimumWidth = 130;
+        _minimumTabDragDistance = 10;
         _hasCloseButton = YES;
         _tabLocation = PSMTab_TopTab;
         _style = [[PSMYosemiteTabStyle alloc] init];
@@ -124,10 +126,10 @@ const NSInteger kPSMStartResizeAnimation = 0;
         // the overflow button/menu
         NSRect overflowButtonRect = NSMakeRect([self frame].size.width - [_style rightMarginForTabBarControl] + 1, 0, [_style rightMarginForTabBarControl] - 1, [self frame].size.height);
         _overflowPopUpButton = [[PSMOverflowPopUpButton alloc] initWithFrame:overflowButtonRect pullsDown:YES];
-        if (_overflowPopUpButton){
+        if (_overflowPopUpButton) {
             // configure
             [_overflowPopUpButton setAutoresizingMask:NSViewNotSizable|NSViewMinXMargin];
-            [[_overflowPopUpButton cell] accessibilitySetOverrideValue:NSLocalizedStringFromTableInBundle(@"More tabs", @"iTerm", [NSBundle bundleForClass:[self class]], @"VoiceOver label for the button displaying menu of additional overflown tabs on click") forAttribute:NSAccessibilityDescriptionAttribute];
+            _overflowPopUpButton.accessibilityLabel = @"More tabs";
         }
 
         // new tab button
@@ -723,8 +725,7 @@ const NSInteger kPSMStartResizeAnimation = 0;
     [self update:YES];
 }
 
-- (void)update
-{
+- (void)update {
     [self update:NO];
 }
 
@@ -869,8 +870,20 @@ const NSInteger kPSMStartResizeAnimation = 0;
     return newWidths;
 }
 
-- (void)_removeCellTrackingRects
-{
+- (void)removeCell:(PSMTabBarCell *)cell {
+    if ([cell closeButtonTrackingTag] != 0) {
+        [self removeTrackingRect:[cell closeButtonTrackingTag]];
+        [cell setCloseButtonTrackingTag:0];
+    }
+
+    if ([cell cellTrackingTag] != 0) {
+        [self removeTrackingRect:[cell cellTrackingTag]];
+        [cell setCellTrackingTag:0];
+    }
+    [[self cells] removeObject:cell];
+}
+
+- (void)_removeCellTrackingRects {
     // size all cells appropriately and create tracking rects
     // nuke old tracking rects
     int i, cellCount = [_cells count];
@@ -1272,10 +1285,11 @@ const NSInteger kPSMStartResizeAnimation = 0;
         float dy = fabs(currentPoint.y - trackingStartPoint.y);
         float distance = sqrt(dx * dx + dy * dy);
 
-        if (distance >= 10 && !_didDrag && ![[PSMTabDragAssistant sharedDragAssistant] isDragging] &&
+        if (distance >= self.minimumTabDragDistance && !_didDrag && ![[PSMTabDragAssistant sharedDragAssistant] isDragging] &&
                 [[self delegate] respondsToSelector:@selector(tabView:shouldDragTabViewItem:fromTabBar:)] &&
                 [[self delegate] tabView:_tabView shouldDragTabViewItem:[cell representedObject] fromTabBar:self]) {
             _didDrag = YES;
+            ILog(@"Start dragging with mouse down event %@ in window %p with frame %@", [self lastMouseDownEvent], self.window, NSStringFromRect(self.window.frame));
             [[PSMTabDragAssistant sharedDragAssistant] startDraggingCell:cell fromTabBar:self withMouseDownEvent:[self lastMouseDownEvent]];
         }
     }
@@ -1371,7 +1385,14 @@ const NSInteger kPSMStartResizeAnimation = 0;
     return YES;
 }
 
-// NSDraggingSource
+#pragma mark NSDraggingSource
+
+- (NSDraggingSession *)beginDraggingSessionWithItems:(NSArray<NSDraggingItem *> *)items event:(NSEvent *)event source:(id<NSDraggingSource>)source {
+    ILog(@"Begin dragging tab bar control %p with event %@ source from\n%@",
+         self, event, [NSThread callStackSymbols]);
+    return [super beginDraggingSessionWithItems:items event:event source:source];
+}
+
 - (NSDragOperation)draggingSourceOperationMaskForLocal:(BOOL)isLocal
 {
     return (isLocal ? NSDragOperationMove : NSDragOperationNone);
@@ -1382,19 +1403,17 @@ const NSInteger kPSMStartResizeAnimation = 0;
     return YES;
 }
 
-- (void)draggedImage:(NSImage *)anImage beganAt:(NSPoint)screenPoint
-{
+- (void)draggingSession:(NSDraggingSession *)session willBeginAtPoint:(NSPoint)screenPoint {
     [[PSMTabDragAssistant sharedDragAssistant] draggingBeganAt:screenPoint];
 }
 
-- (void)draggedImage:(NSImage *)image movedTo:(NSPoint)screenPoint
-{
+- (void)draggingSession:(NSDraggingSession *)session movedToPoint:(NSPoint)screenPoint {
     [[PSMTabDragAssistant sharedDragAssistant] draggingMovedTo:screenPoint];
 }
 
-// NSDraggingDestination
-- (NSDragOperation)draggingEntered:(id <NSDraggingInfo>)sender
-{
+#pragma mark NSDraggingDestination
+
+- (NSDragOperation)draggingEntered:(id <NSDraggingInfo>)sender {
     if ([[[sender draggingPasteboard] types] indexOfObject:@"com.iterm2.psm.controlitem"] != NSNotFound) {
         if ([[self delegate] respondsToSelector:@selector(tabView:shouldDropTabViewItem:inTabBar:)] &&
             ![[self delegate] tabView:[[sender draggingSource] tabView]
@@ -1417,8 +1436,7 @@ const NSInteger kPSMStartResizeAnimation = 0;
     }
 }
 
-- (NSDragOperation)draggingUpdated:(id <NSDraggingInfo>)sender
-{
+- (NSDragOperation)draggingUpdated:(id <NSDraggingInfo>)sender {
     PSMTabBarCell *cell = [self cellForPoint:[self convertPoint:[sender draggingLocation] fromView:nil] cellFrame:nil];
 
     if ([[[sender draggingPasteboard] types] indexOfObject:@"com.iterm2.psm.controlitem"] != NSNotFound) {
@@ -1445,13 +1463,11 @@ const NSInteger kPSMStartResizeAnimation = 0;
     return NSDragOperationNone;
 }
 
-- (void)draggingExited:(id <NSDraggingInfo>)sender
-{
+- (void)draggingExited:(id <NSDraggingInfo>)sender {
     [[PSMTabDragAssistant sharedDragAssistant] draggingExitedTabBar:self];
 }
 
-- (BOOL)prepareForDragOperation:(id <NSDraggingInfo>)sender
-{
+- (BOOL)prepareForDragOperation:(id <NSDraggingInfo>)sender {
     // validate the drag operation only if there's a valid tab bar to drop into
     BOOL badType = [[[sender draggingPasteboard] types] indexOfObject:@"com.iterm2.psm.controlitem"] == NSNotFound;
     if (badType && [[self delegate] respondsToSelector:@selector(tabView:shouldAcceptDragFromSender:)] &&
@@ -1462,14 +1478,12 @@ const NSInteger kPSMStartResizeAnimation = 0;
            [[PSMTabDragAssistant sharedDragAssistant] destinationTabBar] != nil;
 }
 
-- (BOOL)_delegateAcceptsSender:(id <NSDraggingInfo>)sender
-{
+- (BOOL)_delegateAcceptsSender:(id <NSDraggingInfo>)sender {
     return [[self delegate] respondsToSelector:@selector(tabView:shouldAcceptDragFromSender:)] &&
            [[self delegate] tabView:_tabView shouldAcceptDragFromSender:sender];
 }
 
-- (BOOL)performDragOperation:(id <NSDraggingInfo>)sender
-{
+- (BOOL)performDragOperation:(id <NSDraggingInfo>)sender {
     if ([[[sender draggingPasteboard] types] indexOfObject:@"com.iterm2.psm.controlitem"] != NSNotFound ||
         [self _delegateAcceptsSender:sender]) {
         [[PSMTabDragAssistant sharedDragAssistant] performDragOperation:sender];
@@ -1480,19 +1494,13 @@ const NSInteger kPSMStartResizeAnimation = 0;
     return YES;
 }
 
-- (void)draggedImage:(NSImage *)anImage endedAt:(NSPoint)aPoint operation:(NSDragOperation)operation
-{
+- (void)draggingSession:(NSDraggingSession *)session endedAtPoint:(NSPoint)aPoint operation:(NSDragOperation)operation {
     if (operation != NSDragOperationNone) {
         [self removeTabForCell:[[PSMTabDragAssistant sharedDragAssistant] draggedCell]];
         [[PSMTabDragAssistant sharedDragAssistant] finishDrag];
     } else {
         [[PSMTabDragAssistant sharedDragAssistant] draggedImageEndedAt:aPoint operation:operation];
     }
-}
-
-- (void)concludeDragOperation:(id <NSDraggingInfo>)sender
-{
-
 }
 
 #pragma mark -
@@ -1962,66 +1970,39 @@ const NSInteger kPSMStartResizeAnimation = 0;
 #pragma mark -
 #pragma mark Accessibility
 
--(BOOL)accessibilityIsIgnored {
-    return NO;
+- (NSString*)accessibilityRole {
+    return NSAccessibilityTabGroupRole;
 }
 
-- (NSArray*)accessibilityAttributeNames
-{
-    static NSArray *attributes = nil;
-    if (!attributes) {
-        NSSet *set = [NSSet setWithArray:[super accessibilityAttributeNames]];
-        set = [set setByAddingObjectsFromArray:[NSArray arrayWithObjects:
-                                                NSAccessibilityTabsAttribute,
-                                                NSAccessibilityValueAttribute,
-                                                nil]];
-        attributes = [[set allObjects] retain];
+- (NSArray*)accessibilityChildren {
+    NSMutableArray *childElements = [NSMutableArray array];
+    for (PSMTabBarCell *cell in [_cells objectsAtIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, [self numberOfVisibleTabs])]]) {
+        [childElements addObject:cell.element];
     }
-    return attributes;
+    if (![_overflowPopUpButton isHidden]) {
+        [childElements addObject:_overflowPopUpButton];
+    }
+    if (![_addTabButton isHidden]) {
+        [childElements addObject:_addTabButton];
+    }
+    return childElements;
 }
 
-- (id)accessibilityAttributeValue:(NSString *)attribute {
-    id attributeValue = nil;
-    if ([attribute isEqualToString: NSAccessibilityRoleAttribute]) {
-        attributeValue = NSAccessibilityTabGroupRole;
-    } else if ([attribute isEqualToString: NSAccessibilityChildrenAttribute]) {
-        NSMutableArray *children = [NSMutableArray arrayWithArray:[_cells objectsAtIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, [self numberOfVisibleTabs])]]];
-        if (![_overflowPopUpButton isHidden]) {
-            [children addObject:_overflowPopUpButton];
-        }
-        if (![_addTabButton isHidden]) {
-            [children addObject:_addTabButton];
-        }
-        attributeValue = NSAccessibilityUnignoredChildren(children);
-    } else if ([attribute isEqualToString: NSAccessibilityTabsAttribute]) {
-        attributeValue = NSAccessibilityUnignoredChildren(_cells);
-    } else if ([attribute isEqualToString:NSAccessibilityValueAttribute]) {
-        NSTabViewItem *tabViewItem = [_tabView selectedTabViewItem];
-        for (NSActionCell *cell in _cells) {
-            if ([cell representedObject] == tabViewItem)
-                attributeValue = cell;
-        }
-        if (!attributeValue)
-        {
-            NSLog(@"WARNING: seems no tab cell is currently selected");
-        }
-    } else {
-        attributeValue = [super accessibilityAttributeValue:attribute];
+- (NSArray*)accessibilityTabs {
+    NSMutableArray *tabElements = [NSMutableArray array];
+    for (PSMTabBarCell *cell in _cells) {
+        [tabElements addObject:cell.element];
     }
-    return attributeValue;
+    return tabElements;
 }
 
 - (id)accessibilityHitTest:(NSPoint)point {
-    id hitTestResult = self;
-
-    for (PSMTabBarCell *cell in _cells) {
-        if ([cell isHighlighted]) {
-            hitTestResult = [cell accessibilityHitTest:point];
-            break;
+    for (id child in self.accessibilityChildren) {
+        if (NSPointInRect(point, [child accessibilityFrame])) {
+            return [child accessibilityHitTest:point];
         }
     }
-
-    return hitTestResult;
+    return self;
 }
 
 #pragma mark - iTerm Add On

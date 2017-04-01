@@ -660,6 +660,7 @@ static int RawNumLines(LineBuffer* buffer, int width) {
 - (void)prepareToSearchFor:(NSString*)substring
                 startingAt:(LineBufferPosition *)start
                    options:(FindOptions)options
+                      mode:(iTermFindMode)mode
                withContext:(FindContext*)context {
     context.substring = substring;
     context.options = options;
@@ -668,6 +669,7 @@ static int RawNumLines(LineBuffer* buffer, int width) {
     } else {
         context.dir = 1;
     }
+    context.mode = mode;
     int offset = context.offset;
     int absBlockNum = context.absBlockNum;
     if ([self _findPosition:start inBlock:&absBlockNum inOffset:&offset]) {
@@ -680,8 +682,7 @@ static int RawNumLines(LineBuffer* buffer, int width) {
     context.results = [NSMutableArray array];
 }
 
-- (void)findSubstring:(FindContext*)context stopAt:(int)stopAt
-{
+- (void)findSubstring:(FindContext*)context stopAt:(LineBufferPosition *)stopPosition {
     if (context.dir > 0) {
         // Search forwards
         if (context.absBlockNum < num_dropped_blocks) {
@@ -728,12 +729,14 @@ static int RawNumLines(LineBuffer* buffer, int width) {
 
     [block findSubstring:context.substring
                  options:context.options
+                    mode:context.mode
                 atOffset:context.offset
                  results:context.results
          multipleResults:((context.options & FindMultipleResults) != 0)];
     NSMutableArray* filtered = [NSMutableArray arrayWithCapacity:[context.results count]];
     BOOL haveOutOfRangeResults = NO;
     int blockPosition = [self _blockPosition:context.absBlockNum - num_dropped_blocks];
+    const int stopAt = stopPosition.absolutePosition - droppedChars;
     for (ResultRange* range in context.results) {
         range->position += blockPosition;
         if (context.dir * (range->position - stopAt) > 0 ||
@@ -895,9 +898,8 @@ static int RawNumLines(LineBuffer* buffer, int width) {
 
 - (VT100GridCoord)coordinateForPosition:(LineBufferPosition *)position
                                   width:(int)width
-                                     ok:(BOOL *)ok
-{
-    if (position.absolutePosition == [self lastPos] + droppedChars) {
+                                     ok:(BOOL *)ok {
+    if (position.absolutePosition == self.lastPosition.absolutePosition) {
         VT100GridCoord result;
         // If the absolute position is equal to the last position, then
         // numLinesWithWidth: will give the wrapped line number after all
@@ -956,37 +958,6 @@ static int RawNumLines(LineBuffer* buffer, int width) {
         *ok = NO;
     }
     return VT100GridCoordMake(0, 0);
-}
-
-- (int) firstPos
-{
-    int i;
-    int position = 0;
-    for (i = 0; i < [blocks count]; ++i) {
-        LineBlock* block = [blocks objectAtIndex:i];
-        if (![block isEmpty]) {
-            position += [block startOffset];
-            break;
-        } else {
-            position += [block rawSpaceUsed];
-        }
-    }
-    return position;
-}
-
-- (int) lastPos
-{
-    int i;
-    int position = 0;
-    for (i = 0; i < [blocks count]; ++i) {
-        LineBlock* block = [blocks objectAtIndex:i];
-        if (![block isEmpty]) {
-            position += [block rawSpaceUsed];
-        } else {
-            position += [block rawSpaceUsed];
-        }
-    }
-    return position;
 }
 
 - (LineBufferPosition *)firstPosition {

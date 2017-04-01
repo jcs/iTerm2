@@ -7,14 +7,13 @@
 //
 
 #import <XCTest/XCTest.h>
+#import "iTermFakeUserDefaults.h"
 #import "iTermPreferences.h"
 #import "iTermSelectorSwizzler.h"
 #import "iTermTextExtractor.h"
 #import "NSStringITerm.h"
 #import "ScreenChar.h"
 #import "SmartSelectionController.h"
-#import <OCHamcrest/OCHamcrest.h>
-#import <OCMockito/OCMockito.h>
 
 static const NSInteger kUnicodeVersion = 9;
 
@@ -116,14 +115,14 @@ static const NSInteger kUnicodeVersion = 9;
 - (void)performTestForWordSelectionUsingLine:(NSString *)line
                         wordForEachCharacter:(NSArray<NSString *> *)expected
                          extraWordCharacters:(NSString *)extraWordCharacters {
-    NSUserDefaults *mockDefaults = MKTMock([NSUserDefaults class]);
-    [MKTGiven([mockDefaults objectForKey:kPreferenceKeyCharactersConsideredPartOfAWordForSelection]) willReturn:extraWordCharacters];
+    iTermFakeUserDefaults *fakeDefaults = [[[iTermFakeUserDefaults alloc] init] autorelease];
+    [fakeDefaults setFakeObject:extraWordCharacters forKey:kPreferenceKeyCharactersConsideredPartOfAWordForSelection];
     _lines = @[ line ];
     iTermTextExtractor *extractor = [iTermTextExtractor textExtractorWithDataSource:self];
     
     [iTermSelectorSwizzler swizzleSelector:@selector(standardUserDefaults)
                                  fromClass:[NSUserDefaults class]
-                                 withBlock:^ id { return mockDefaults; }
+                                 withBlock:^ id { return fakeDefaults; }
                                   forBlock:^{
                                       VT100GridWindowedRange range;
                                       for (int i = 0; i < line.length; i++) {
@@ -135,6 +134,11 @@ static const NSInteger kUnicodeVersion = 9;
                                                                 @(i), VT100GridWindowedRangeDescription(range), actual, expected[i]);
                                       }
                                   }];
+}
+
+- (void)testSmartSelectionRulesPlistParseable {
+    NSArray *rules = [SmartSelectionController defaultRules];
+    XCTAssertTrue(rules.count > 0, @"No default smart selection rules"); 
 }
 
 // Ensures double-width characters are handled properly.
@@ -359,6 +363,67 @@ static const NSInteger kUnicodeVersion = 9;
                                continuationChars:nil
                                           coords:nil];
     XCTAssertEqualObjects(@"ab  c", actual);
+}
+
+- (void)appendWrappedLine:(NSString *)line width:(int)width eol:(int)eol {
+    NSMutableData *data = [NSMutableData dataWithLength:(width + 1) * sizeof(screen_char_t)];
+    screen_char_t color = { 0 };
+    int len = 0;
+    StringToScreenChars(line,
+                        data.mutableBytes,
+                        color,
+                        color,
+                        &len,
+                        NO,
+                        NULL,
+                        NULL,
+                        NO,
+                        kUnicodeVersion);
+    screen_char_t *buffer = (screen_char_t *)data.mutableBytes;
+    buffer[width].code = eol;
+    if (!_lines) {
+        _lines = @[];
+    }
+    _lines = [_lines arrayByAddingObject:data];
+}
+
+- (void)testRangeForWrappedLine_EOL_DWC {
+    [self appendWrappedLine:@"asdf" width:30 eol:EOL_HARD];
+    [self appendWrappedLine:[NSString stringWithFormat:@"111111111111111111111111111中%C%C", DWC_RIGHT, DWC_SKIP] width:30 eol:EOL_DWC];
+    [self appendWrappedLine:@"文" width:30 eol:EOL_HARD];
+
+    iTermTextExtractor *extractor = [iTermTextExtractor textExtractorWithDataSource:self];
+    VT100GridWindowedRange range = [extractor rangeForWrappedLineEncompassing:VT100GridCoordMake(5, 1) respectContinuations:NO];
+    XCTAssertEqual(range.coordRange.start.x, 0);
+    XCTAssertEqual(range.coordRange.start.y, 1);
+    XCTAssertEqual(range.coordRange.end.x, 30);
+    XCTAssertEqual(range.coordRange.end.y, 2);
+}
+
+- (void)testRangeForWrappedLine_EOL_SOFT {
+    [self appendWrappedLine:@"asdf" width:30 eol:EOL_HARD];
+    [self appendWrappedLine:[NSString stringWithFormat:@"111111111111111111111111111xyz"] width:30 eol:EOL_SOFT];
+    [self appendWrappedLine:@"hello world" width:30 eol:EOL_HARD];
+
+    iTermTextExtractor *extractor = [iTermTextExtractor textExtractorWithDataSource:self];
+    VT100GridWindowedRange range = [extractor rangeForWrappedLineEncompassing:VT100GridCoordMake(5, 1) respectContinuations:NO];
+    XCTAssertEqual(range.coordRange.start.x, 0);
+    XCTAssertEqual(range.coordRange.start.y, 1);
+    XCTAssertEqual(range.coordRange.end.x, 30);
+    XCTAssertEqual(range.coordRange.end.y, 2);
+}
+
+- (void)testRangeForWrappedLine_EOL_HARD {
+    [self appendWrappedLine:@"asdf" width:30 eol:EOL_HARD];
+    [self appendWrappedLine:[NSString stringWithFormat:@"111111111111111111111111111xyz"] width:30 eol:EOL_HARD];
+    [self appendWrappedLine:@"hello world" width:30 eol:EOL_HARD];
+
+    iTermTextExtractor *extractor = [iTermTextExtractor textExtractorWithDataSource:self];
+    VT100GridWindowedRange range = [extractor rangeForWrappedLineEncompassing:VT100GridCoordMake(5, 1) respectContinuations:NO];
+    XCTAssertEqual(range.coordRange.start.x, 0);
+    XCTAssertEqual(range.coordRange.start.y, 1);
+    XCTAssertEqual(range.coordRange.end.x, 30);
+    XCTAssertEqual(range.coordRange.end.y, 1);
 }
 
 #pragma mark - iTermTextDataSource

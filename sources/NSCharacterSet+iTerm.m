@@ -7,6 +7,7 @@
 //
 
 #import "NSCharacterSet+iTerm.h"
+#import "iTermAdvancedSettingsModel.h"
 
 @implementation NSCharacterSet (iTerm)
 
@@ -684,12 +685,36 @@
     dispatch_once(&onceToken, ^{
         NSString *string =
             @"\ufeff"  // zero width no-break space
-            @"\u200b"  // zero width space
             @"\u200c"  // zero width non-joiner
             @"\u200d";  // zero width joiner
+        if (![iTermAdvancedSettingsModel zeroWidthSpaceAdvancesCursor]) {
+            string = [string stringByAppendingString:@"\u200b"];  // zero width space
+        }
         characterSet = [[NSCharacterSet characterSetWithCharactersInString:string] retain];
     });
     return characterSet;
+}
+
++ (NSCharacterSet *)filenameCharacterSet {
+    static NSMutableCharacterSet* filenameChars;
+    if (!filenameChars) {
+        filenameChars = [[NSCharacterSet whitespaceCharacterSet] mutableCopy];
+        [filenameChars formUnionWithCharacterSet:[self urlCharacterSet]];
+    }
+
+    return filenameChars;
+}
+
++ (NSCharacterSet *)urlCharacterSet {
+    static NSMutableCharacterSet* urlChars;
+    if (!urlChars) {
+        NSString *chars = [iTermAdvancedSettingsModel URLCharacterSet];
+        urlChars = [[NSMutableCharacterSet characterSetWithCharactersInString:chars] retain];
+        [urlChars formUnionWithCharacterSet:[NSCharacterSet alphanumericCharacterSet]];
+        [urlChars retain];
+    }
+
+    return urlChars;
 }
 
 @end

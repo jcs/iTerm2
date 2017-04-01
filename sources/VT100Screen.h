@@ -60,7 +60,7 @@ extern int kVT100ScreenMinRows;
 @property(nonatomic, assign) BOOL trackCursorLineMovement;
 @property(nonatomic, assign) BOOL appendToScrollbackWithStatusBar;
 @property(nonatomic, readonly) VT100GridAbsCoordRange lastCommandOutputRange;
-@property(nonatomic, assign) BOOL useHFSPlusMapping;
+@property(nonatomic, assign) iTermUnicodeNormalization normalization;
 @property(nonatomic, readonly) BOOL shellIntegrationInstalled;  // Just a guess.
 @property(nonatomic, readonly) NSIndexSet *animatedLines;
 
@@ -193,6 +193,13 @@ extern int kVT100ScreenMinRows;
 
 // Uninitialize timestamps.
 - (void)resetTimestamps;
+
+// Fake shell integration via triggers APIs
+- (void)promptDidStartAt:(VT100GridAbsCoord)coord;
+- (void)commandDidStartAt:(VT100GridAbsCoord)coord;
+- (BOOL)commandDidEndAtAbsCoord:(VT100GridAbsCoord)coord;
+
+- (VT100GridCoordRange)coordRangeForInterval:(Interval *)interval;
 
 @end
 

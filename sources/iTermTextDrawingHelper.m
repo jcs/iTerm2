@@ -61,6 +61,7 @@ typedef struct {
     BOOL fakeBold;
     BOOL fakeItalic;
     BOOL underline;
+    BOOL isURL;
     NSInteger ligatureLevel;
     BOOL drawable;
 } iTermCharacterAttributes;
@@ -91,6 +92,7 @@ static NSString *const iTermFakeItalicAttribute = @"iTermFakeItalicAttribute";
 static NSString *const iTermImageCodeAttribute = @"iTermImageCodeAttribute";
 static NSString *const iTermImageColumnAttribute = @"iTermImageColumnAttribute";
 static NSString *const iTermImageLineAttribute = @"iTermImageLineAttribute";
+static NSString *const iTermImageDisplayColumnAttribute = @"iTermImageDisplayColumnAttribute";
 static NSString *const iTermIsBoxDrawingAttribute = @"iTermIsBoxDrawingAttribute";
 static NSString *const iTermUnderlineLengthAttribute = @"iTermUnderlineLengthAttribute";
 
@@ -193,7 +195,7 @@ typedef struct iTermTextColorContext {
 - (void)drawTextViewContentInRect:(NSRect)rect
                          rectsPtr:(const NSRect *)rectArray
                         rectCount:(NSInteger)rectCount {
-//    NSLog(@"drawRect:%@ in view %@", [NSValue valueWithRect:rect], _delegate);
+    DLog(@"begin drawRect:%@ in view %@", [NSValue valueWithRect:rect], _delegate);
     if (_debug) {
         [[NSColor redColor] set];
         NSRectFill(rect);
@@ -245,8 +247,6 @@ typedef struct iTermTextColorContext {
 
     [self drawRanges:ranges count:numRowsInRect origin:boundingCoordRange.start boundingRect:[self rectForCoordRange:boundingCoordRange]];
     
-    [self drawCursor];
-
     if (_showDropTargets) {
         [self drawDropTargets];
     }
@@ -269,6 +269,7 @@ typedef struct iTermTextColorContext {
 
     [_selectedFont release];
     _selectedFont = nil;
+    DLog(@"end drawRect:%@ in view %@", [NSValue valueWithRect:rect], _delegate);
 }
 
 - (NSInteger)numberOfEquivalentBackgroundColorLinesInRunArrays:(NSArray<iTermBackgroundColorRunsInLine *> *)backgroundRunArrays
@@ -368,6 +369,11 @@ typedef struct iTermTextColorContext {
     // Draw other background-like stuff that goes behind text.
     [self drawAccessoriesInRect:boundingRect];
 
+    const BOOL drawCursorBeforeText = (_cursorType == CURSOR_UNDERLINE || _cursorType == CURSOR_VERTICAL);
+    if (drawCursorBeforeText) {
+        [self drawCursor:NO];
+    }
+
     // Now iterate over the lines and paint the characters.
     CGContextRef ctx = (CGContextRef)[[NSGraphicsContext currentContext] graphicsPort];
     iTermBackgroundColorRunsInLine *representativeRunArray = nil;
@@ -404,6 +410,13 @@ typedef struct iTermTextColorContext {
                          cursorHeight:_cellSizeWithoutSpacing.height
                                   ctx:ctx];
     _blinkingFound |= self.cursorBlinking;
+    if (drawCursorBeforeText) {
+        if ([iTermAdvancedSettingsModel drawOutlineAroundCursor]) {
+            [self drawCursor:YES];
+        }
+    } else {
+        [self drawCursor:NO];
+    }
 }
 
 #pragma mark - Drawing: Background
@@ -628,6 +641,12 @@ typedef struct iTermTextColorContext {
         const CGFloat kMaxHeight = 15;
         const CGFloat kMinMargin = 3;
         const CGFloat kMargin = MAX(kMinMargin, (_cellSizeWithoutSpacing.height - kMaxHeight) / 2.0);
+
+        const CGFloat overage = rect.size.width - rect.size.height + 2 * kMargin;
+        if (overage > 0) {
+            rect.origin.x += overage * .7;
+            rect.size.width -= overage;
+        }
         NSPoint top = NSMakePoint(NSMinX(rect), rect.origin.y + kMargin);
         NSPoint right = NSMakePoint(NSMaxX(rect), NSMidY(rect));
         NSPoint bottom = NSMakePoint(NSMinX(rect), NSMaxY(rect) - kMargin);
@@ -943,7 +962,6 @@ typedef struct iTermTextColorContext {
     CTVector(CGFloat) positions;
     CTVectorCreate(&positions, _gridSize.width);
 
-
     if (indexRange.location > 0) {
         screen_char_t firstCharacter = theLine[indexRange.location];
         if (firstCharacter.code == DWC_RIGHT && !firstCharacter.complexChar) {
@@ -994,11 +1012,11 @@ typedef struct iTermTextColorContext {
         int numCellsDrawn;
         if ([singlePartAttributedString isKindOfClass:[NSAttributedString class]]) {
             numCellsDrawn = [self drawSinglePartAttributedString:(NSAttributedString *)singlePartAttributedString
-                                                 atPoint:point
-                                                  origin:origin
-                                               positions:subpositions
-                                               inContext:ctx
-                                         backgroundColor:backgroundColor];
+                                                         atPoint:point
+                                                          origin:origin
+                                                       positions:subpositions
+                                                       inContext:ctx
+                                                 backgroundColor:backgroundColor];
         } else {
             NSPoint offsetPoint = point;
             offsetPoint.y -= round((_cellSize.height - _cellSizeWithoutSpacing.height) / 2.0);
@@ -1041,10 +1059,13 @@ typedef struct iTermTextColorContext {
         // This method is really slow so avoid doing it when it's not
         // necessary. It is also deprecated but CoreText is extremely slow so
         // we'll keep using until Apple fixes that.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
         CGContextSelectFont(ctx,
                             [[font fontName] UTF8String],
                             [font pointSize],
                             kCGEncodingMacRoman);
+#pragma clang diagnostic pop
         [_selectedFont release];
         _selectedFont = [font retain];
     }
@@ -1153,10 +1174,11 @@ typedef struct iTermTextColorContext {
         // Handle cells that are part of an image.
         VT100GridCoord originInImage = VT100GridCoordMake([attributes[iTermImageColumnAttribute] intValue],
                                                           [attributes[iTermImageLineAttribute] intValue]);
+        int displayColumn = [attributes[iTermImageDisplayColumnAttribute] intValue];
         [self drawImageWithCode:[attributes[iTermImageCodeAttribute] shortValue]
-                         origin:origin
+                         origin:VT100GridCoordMake(displayColumn, origin.y)
                          length:attributedString.length
-                        atPoint:point
+                        atPoint:NSMakePoint(positions[0] + point.x, point.y)
                   originInImage:originInImage];
         return attributedString.length;
     } else if ([attributes[iTermIsBoxDrawingAttribute] boolValue]) {
@@ -1328,23 +1350,25 @@ typedef struct iTermTextColorContext {
                                  inRange:NSMakeRange(0, attributedString.length)
                                  options:0
                               usingBlock:^(NSNumber * _Nullable value, NSRange range, BOOL * _Nonnull stop) {
-                                  if (value.integerValue) {
+                                  NSUnderlineStyle underlineStyle = value.integerValue;
+                                  if (underlineStyle != NSUnderlineStyleNone) {
                                       CGFloat xOrigin = origin.x + stringPositions[range.location];
                                       const BOOL mask = YES;
                                       NSDictionary *attributes = [attributedString attributesAtIndex:range.location
                                                                                       effectiveRange:nil];
                                       const CGFloat width = [attributes[iTermUnderlineLengthAttribute] intValue] * _cellSize.width;
                                       if (mask) {
+                                          const CGFloat maskHeight = _cellSize.height * 2;
                                           if (!maskGraphicsContext) {
                                               // Create a mask image.
-                                              maskGraphicsContext = [self newGrayscaleContextOfSize:NSMakeSize(width, _cellSize.height)];
+                                              maskGraphicsContext = [self newGrayscaleContextOfSize:NSMakeSize(width, maskHeight)];
                                               [NSGraphicsContext saveGraphicsState];
                                               [NSGraphicsContext setCurrentContext:[NSGraphicsContext graphicsContextWithGraphicsPort:maskGraphicsContext
                                                                                                                               flipped:NO]];
 
                                               // Draw the background
                                               [[NSColor whiteColor] setFill];
-                                              CGContextFillRect([[NSGraphicsContext currentContext] graphicsPort], NSMakeRect(0, 0, width, _cellSize.height));
+                                              CGContextFillRect([[NSGraphicsContext currentContext] graphicsPort], NSMakeRect(0, 0, width, maskHeight));
                                               
                                               // Draw text into the mask
                                               NSMutableAttributedString *modifiedAttributedString = [[attributedString mutableCopy] autorelease];
@@ -1372,16 +1396,18 @@ typedef struct iTermTextColorContext {
                                                               NSMakeRect(xOrigin,
                                                                          origin.y,
                                                                          width,
-                                                                         _cellSize.height),
+                                                                         maskHeight),
                                                               alphaMask);
                                       }
 
                                       NSColor *underline = [self.colorMap colorForKey:kColorMapUnderline];
                                       NSColor *color = (underline ? underline : attributes[NSForegroundColorAttributeName]);
                                       [self drawUnderlineOfColor:color
+                                                           style:underlineStyle
                                                     atCellOrigin:NSMakePoint(xOrigin, origin.y)
                                                             font:attributes[NSFontAttributeName]
                                                            width:width];
+
 
                                       if (mask) {
                                           // Remove mask
@@ -1565,6 +1591,7 @@ static BOOL iTermTextDrawingHelperIsCharacterDrawable(screen_char_t *c,
                                           newAttributes->bold != previousAttributes->bold ||
                                           newAttributes->fakeItalic != previousAttributes->fakeItalic ||
                                           newAttributes->underline != previousAttributes->underline ||
+                                          newAttributes->isURL != previousAttributes->isURL ||
                                           newAttributes->drawable != previousAttributes->drawable);
         }
         return *combinedAttributesChanged;
@@ -1633,11 +1660,27 @@ static BOOL iTermTextDrawingHelperIsCharacterDrawable(screen_char_t *c,
     if (!c->complexChar && iTermCharacterSupportsFastPath(c->code, _asciiLigaturesAvailable)) {
         attributes->ligatureLevel = 0;
     }
+    if (c->complexChar || c->code > 128) {
+        if (!_nonAsciiLigatures) {
+            attributes->ligatureLevel = 0;
+        }
+    }
     attributes->underline = (c->underline || inUnderlinedRange);
+    attributes->isURL = (c->urlCode != 0);
     attributes->drawable = drawable;
 }
 
 - (NSDictionary *)dictionaryForCharacterAttributes:(iTermCharacterAttributes *)attributes {
+    NSUnderlineStyle underlineStyle = NSUnderlineStyleNone;
+    if (attributes->underline) {
+        if (attributes->isURL) {
+            underlineStyle = NSUnderlineStyleDouble;
+        } else {
+            underlineStyle = NSUnderlineStyleSingle;
+        }
+    } else if (attributes->isURL) {
+        underlineStyle = NSUnderlinePatternDash;
+    }
     return @{ (NSString *)kCTLigatureAttributeName: @(attributes->ligatureLevel),
               NSForegroundColorAttributeName: attributes->foregroundColor,
               NSFontAttributeName: attributes->font,
@@ -1646,14 +1689,15 @@ static BOOL iTermTextDrawingHelperIsCharacterDrawable(screen_char_t *c,
               iTermFakeBoldAttribute: @(attributes->fakeBold),
               iTermBoldAttribute: @(attributes->bold),
               iTermFakeItalicAttribute: @(attributes->fakeItalic),
-              NSUnderlineStyleAttributeName: attributes->underline ? @(NSUnderlineStyleSingle) : @(NSUnderlineStyleNone) };
+              NSUnderlineStyleAttributeName: @(underlineStyle) };
 }
 
-- (NSDictionary *)imageAttributesForCharacter:(screen_char_t *)c {
+- (NSDictionary *)imageAttributesForCharacter:(screen_char_t *)c displayColumn:(int)displayColumn {
     if (c->image) {
         return @{ iTermImageCodeAttribute: @(c->code),
                   iTermImageColumnAttribute: @(c->foregroundColor),
-                  iTermImageLineAttribute: @(c->backgroundColor) };
+                  iTermImageLineAttribute: @(c->backgroundColor),
+                  iTermImageDisplayColumnAttribute: @(displayColumn) };
     } else {
         return nil;
     }
@@ -1666,7 +1710,7 @@ static BOOL iTermTextDrawingHelperIsCharacterDrawable(screen_char_t *c,
     if (!c->complexChar) {
         if (_useNonAsciiFont) {
             BOOL ascii = c->code < 128;
-            BOOL pcAscii = c->code < 128;
+            BOOL pcAscii = pc->code < 128;
             if (ascii != pcAscii) {
                 return NO;
             }
@@ -1691,6 +1735,12 @@ static BOOL iTermTextDrawingHelperIsCharacterDrawable(screen_char_t *c,
     }
 
     return YES;
+}
+
+- (BOOL)zippy {
+    return (!(_asciiLigaturesAvailable && _asciiLigatures) &&
+            !(_nonAsciiLigatures) &&
+            [iTermAdvancedSettingsModel zippyTextDrawing]);
 }
 
 - (NSArray<id<iTermAttributedString>> *)attributedStringsForLine:(screen_char_t *)line
@@ -1720,7 +1770,8 @@ static BOOL iTermTextDrawingHelperIsCharacterDrawable(screen_char_t *c,
     };
     NSDictionary *previousImageAttributes = nil;
     iTermMutableAttributedStringBuilder *builder = [[[iTermMutableAttributedStringBuilder alloc] init] autorelease];
-    builder.asciiLigaturesAvailable = _asciiLigaturesAvailable;
+    builder.zippy = self.zippy;
+    builder.asciiLigaturesAvailable = _asciiLigaturesAvailable && _asciiLigatures;
     iTermCharacterAttributes characterAttributes = { 0 };
     iTermCharacterAttributes previousCharacterAttributes = { 0 };
     int segmentLength = 0;
@@ -1758,11 +1809,12 @@ static BOOL iTermTextDrawingHelperIsCharacterDrawable(screen_char_t *c,
             likely(i > indexRange.location) &&
 #if !ENABLE_FASTPATH_UNDERLINES
             likely(!c.underline) &&
+            likely(c.urlCode == 0) &&
 #endif
             [self character:&c isEquivalentToCharacter:&line[i-1]]) {
             ++segmentLength;
             iTermPreciseTimerStatsMeasureAndAccumulate(&_stats[TIMER_ATTRS_FOR_CHAR]);
-            if (drawable || (characterAttributes.underline && segmentLength == 1)) {
+            if (drawable || ((characterAttributes.underline || characterAttributes.isURL) && segmentLength == 1)) {
                 [self updateBuilder:builder
                          withString:drawable ? charAsString : @" "
                         orCharacter:code
@@ -1785,7 +1837,7 @@ static BOOL iTermTextDrawingHelperIsCharacterDrawable(screen_char_t *c,
         
         iTermPreciseTimerStatsStartTimer(&_stats[TIMER_SHOULD_SEGMENT]);
 
-        NSDictionary *imageAttributes = [self imageAttributesForCharacter:&c];
+        NSDictionary *imageAttributes = [self imageAttributesForCharacter:&c displayColumn:i];
         BOOL justSegmented = NO;
         BOOL combinedAttributesChanged = NO;
 
@@ -1802,7 +1854,7 @@ static BOOL iTermTextDrawingHelperIsCharacterDrawable(screen_char_t *c,
             
             iTermPreciseTimerStatsStartTimer(&_stats[TIMER_STAT_BUILD_MUTABLE_ATTRIBUTED_STRING]);
             id<iTermAttributedString> builtString = builder.attributedString;
-            if (previousCharacterAttributes.underline) {
+            if (previousCharacterAttributes.underline || previousCharacterAttributes.isURL) {
                 [builtString addAttribute:iTermUnderlineLengthAttribute
                                     value:@(segmentLength)];
             }
@@ -1813,13 +1865,14 @@ static BOOL iTermTextDrawingHelperIsCharacterDrawable(screen_char_t *c,
                 [attributedStrings addObject:builtString];
             }
             builder = [[[iTermMutableAttributedStringBuilder alloc] init] autorelease];
-            builder.asciiLigaturesAvailable = _asciiLigaturesAvailable;
+            builder.zippy = self.zippy;
+            builder.asciiLigaturesAvailable = _asciiLigaturesAvailable && _asciiLigatures;
         }
         ++segmentLength;
         memcpy(&previousCharacterAttributes, &characterAttributes, sizeof(previousCharacterAttributes));
         previousImageAttributes = [[imageAttributes copy] autorelease];
 #if !ENABLE_FASTPATH_UNDERLINES
-        if (characterAttributes.underline) {
+        if (characterAttributes.underline || characterAttributes.isURL) {
             [builder disableFastPath];
         }
 #endif
@@ -1835,7 +1888,7 @@ static BOOL iTermTextDrawingHelperIsCharacterDrawable(screen_char_t *c,
         }
         iTermPreciseTimerStatsMeasureAndAccumulate(&_stats[TIMER_COMBINE_ATTRIBUTES]);
 
-        if (drawable || (characterAttributes.underline && segmentLength == 1)) {
+        if (drawable || ((characterAttributes.underline || characterAttributes.isURL) && segmentLength == 1)) {
             // Use " " when not drawable to prevent 0-length attributed strings when an underline is
             // present. If we get here's because there's an underline (which isn't quite obvious
             // from the if statement's condition).
@@ -1849,7 +1902,7 @@ static BOOL iTermTextDrawingHelperIsCharacterDrawable(screen_char_t *c,
     if (builder.length) {
         iTermPreciseTimerStatsStartTimer(&_stats[TIMER_STAT_BUILD_MUTABLE_ATTRIBUTED_STRING]);
         id<iTermAttributedString> builtString = builder.attributedString;
-        if (previousCharacterAttributes.underline) {
+        if (previousCharacterAttributes.underline || previousCharacterAttributes.isURL) {
             [builtString addAttribute:iTermUnderlineLengthAttribute
                                             value:@(segmentLength)];
         }
@@ -1901,6 +1954,7 @@ static BOOL iTermTextDrawingHelperIsCharacterDrawable(screen_char_t *c,
 }
 
 - (void)drawUnderlineOfColor:(NSColor *)color
+                       style:(NSUnderlineStyle)underlineStyle
                 atCellOrigin:(NSPoint)startPoint
                         font:(NSFont *)font
                        width:(CGFloat)runWidth {
@@ -1910,18 +1964,59 @@ static BOOL iTermTextDrawingHelperIsCharacterDrawable(screen_char_t *c,
     // Keep the underline a reasonable distance from the baseline.
     CGFloat underlineOffset = _underlineOffset;
     CGFloat distanceFromBaseline = underlineOffset - _baselineOffset;
-    if (distanceFromBaseline < 2) {
-        underlineOffset = _baselineOffset + 2;
+    const CGFloat minimumDistance = [self retinaRound:font.xHeight * 0.4];
+    if (distanceFromBaseline < minimumDistance) {
+        underlineOffset = _baselineOffset + minimumDistance;
     } else if (distanceFromBaseline > font.xHeight / 2) {
         underlineOffset = _baselineOffset + font.xHeight / 2;
     }
 
+    CGFloat scaleFactor = self.isRetina ? 2.0 : 1.0;
     NSPoint origin = NSMakePoint(startPoint.x,
-                                 [self retinaRound:startPoint.y + _cellSize.height + underlineOffset]);
-    [path moveToPoint:origin];
-    [path lineToPoint:NSMakePoint(origin.x + runWidth, origin.y)];
-    [path setLineWidth:MAX(0.75, [self retinaRound:font.underlineThickness])];
-    [path stroke];
+                                 [self retinaRound:startPoint.y + _cellSize.height + underlineOffset] - 1.0 / (2 * scaleFactor));
+    CGFloat dashPattern[] = { 4, 3 };
+    CGFloat phase = fmod(startPoint.x, dashPattern[0] + dashPattern[1]);
+
+    const CGFloat lineWidth = MAX(0.75, [self retinaRound:font.underlineThickness]);
+    switch (underlineStyle) {
+        case NSUnderlineStyleSingle:
+            [path moveToPoint:origin];
+            [path lineToPoint:NSMakePoint(origin.x + runWidth, origin.y)];
+            [path setLineWidth:lineWidth];
+            [path stroke];
+            break;
+
+        case NSUnderlineStyleDouble: {
+            [path moveToPoint:origin];
+            [path lineToPoint:NSMakePoint(origin.x + runWidth, origin.y)];
+            [path setLineWidth:lineWidth];
+            [path stroke];
+
+            path = [NSBezierPath bezierPath];
+            [path moveToPoint:NSMakePoint(origin.x, origin.y + lineWidth + 1)];
+            [path lineToPoint:NSMakePoint(origin.x + runWidth, origin.y + lineWidth + 1)];
+            [path setLineWidth:lineWidth];
+            [path setLineDash:dashPattern count:2 phase:phase];
+            [path stroke];
+            break;
+        }
+
+        case NSUnderlinePatternDash: {
+            [path moveToPoint:origin];
+            [path lineToPoint:NSMakePoint(origin.x + runWidth, origin.y)];
+            [path setLineWidth:lineWidth];
+            [path setLineDash:dashPattern count:2 phase:phase];
+            [path stroke];
+            break;
+
+        case NSUnderlineStyleNone:
+            break;
+
+        default:
+            ITCriticalError(NO, @"Unexpected underline style %@", @(underlineStyle));
+            break;
+        }
+    }
 }
 
 - (CGFloat)retinaRound:(CGFloat)value {
@@ -2000,7 +2095,7 @@ static BOOL iTermTextDrawingHelperIsCharacterDrawable(screen_char_t *c,
                             _ambiguousIsDoubleWidth,
                             &cursorIndex,
                             NULL,
-                            _useHFSPlusMapping,
+                            _normalization,
                             self.unicodeVersion);
         int cursorX = 0;
         int baseX = floor(xStart * _cellSize.width + [iTermAdvancedSettingsModel terminalMargin]);
@@ -2052,6 +2147,7 @@ static BOOL iTermTextDrawingHelperIsCharacterDrawable(screen_char_t *c,
                                                              renderBold:&ignore
                                                            renderItalic:&ignore];
             [self drawUnderlineOfColor:[self defaultTextColor]
+                                 style:NSUnderlineStyleSingle
                           atCellOrigin:NSMakePoint(x, y - round((_cellSize.height - _cellSizeWithoutSpacing.height) / 2.0))
                                   font:fontInfo.font
                                  width:charsInLine * _cellSize.width];
@@ -2117,15 +2213,36 @@ static BOOL iTermTextDrawingHelperIsCharacterDrawable(screen_char_t *c,
 
 - (NSRect)cursorFrame {
     const int rowNumber = _cursorCoord.y + _numberOfLines - _gridSize.height;
-    const CGFloat height = MIN(_cellSize.height, _cellSizeWithoutSpacing.height);
-    return NSMakeRect(floor(_cursorCoord.x * _cellSize.width + [iTermAdvancedSettingsModel terminalMargin]),
-                      rowNumber * _cellSize.height + MAX(0, round((_cellSize.height - _cellSizeWithoutSpacing.height) / 2.0)),
-                      MIN(_cellSize.width, _cellSizeWithoutSpacing.width),
-                      height);
+    if ([iTermAdvancedSettingsModel fullHeightCursor]) {
+        const CGFloat height = MAX(_cellSize.height, _cellSizeWithoutSpacing.height);
+        return NSMakeRect(floor(_cursorCoord.x * _cellSize.width + [iTermAdvancedSettingsModel terminalMargin]),
+                          rowNumber * _cellSize.height,
+                          MIN(_cellSize.width, _cellSizeWithoutSpacing.width),
+                          height);
+    } else {
+        const CGFloat height = MIN(_cellSize.height, _cellSizeWithoutSpacing.height);
+        return NSMakeRect(floor(_cursorCoord.x * _cellSize.width + [iTermAdvancedSettingsModel terminalMargin]),
+                          rowNumber * _cellSize.height + MAX(0, round((_cellSize.height - _cellSizeWithoutSpacing.height) / 2.0)),
+                          MIN(_cellSize.width, _cellSizeWithoutSpacing.width),
+                          height);
+    }
 }
 
-- (void)drawCursor {
-    DLog(@"drawCursor");
+- (NSRect)cursorFrameIncludingDoubleWidthAdjustment {
+    screen_char_t *theLine = [self.delegate drawingHelperLineAtScreenIndex:_cursorCoord.y];
+    BOOL isDoubleWidth;
+    [self charForCursorAtColumn:_cursorCoord.x
+                         inLine:theLine
+                    doubleWidth:&isDoubleWidth];
+    NSRect rect = [self cursorFrame];
+    if (isDoubleWidth) {
+        rect.size.width *= 2;
+    }
+    return rect;
+}
+
+- (void)drawCursor:(BOOL)outline {
+    DLog(@"drawCursor:%@", @(outline));
 
     // Update the last time the cursor moved.
     NSTimeInterval now = [NSDate timeIntervalSinceReferenceDate];
@@ -2146,7 +2263,11 @@ static BOOL iTermTextDrawingHelperIsCharacterDrawable(screen_char_t *c,
 
         // Get the color of the cursor.
         NSColor *cursorColor;
-        cursorColor = [self backgroundColorForCursor];
+        if (outline) {
+            cursorColor = [_colorMap colorForKey:kColorMapBackground];
+        } else {
+            cursorColor = [self backgroundColorForCursor];
+        }
         NSRect rect = [self cursorFrame];
         if (isDoubleWidth) {
             rect.size.width *= 2;
@@ -2174,7 +2295,7 @@ static BOOL iTermTextDrawingHelperIsCharacterDrawable(screen_char_t *c,
                        smart:_useSmartCursorColor
                      focused:((_isInKeyWindow && _textViewIsActiveSession) || _shouldDrawFilledInCursor)
                        coord:_cursorCoord
-                  cellHeight:_cellSize.height];
+                     outline:outline];
         if (_showSearchingCursor) {
             NSImage *image = [NSImage imageNamed:@"SearchCursor"];
             if (image) {
@@ -2452,7 +2573,7 @@ static BOOL iTermTextDrawingHelperIsCharacterDrawable(screen_char_t *c,
                                                       isComplex:NO
                                                      renderBold:&ignore1
                                                    renderItalic:&ignore2];
-    _asciiLigaturesAvailable = fontInfo.ligatureLevel > 0 || fontInfo.hasDefaultLigatures;
+    _asciiLigaturesAvailable = (fontInfo.ligatureLevel > 0 || fontInfo.hasDefaultLigatures) && _asciiLigatures;
 }
 
 - (void)startTiming {

@@ -1,4 +1,5 @@
 #import <Cocoa/Cocoa.h>
+#import "FindViewController.h"
 #import "ITAddressBookMgr.h"
 #import "iTerm.h"
 #import "iTermColorMap.h"
@@ -125,6 +126,7 @@ typedef NS_ENUM(NSInteger, PTYTextViewSelectionExtensionUnit) {
 - (BOOL)textViewHasCoprocess;
 - (void)textViewPostTabContentsChangedNotification;
 - (void)textViewInvalidateRestorableState;
+- (void)textViewDidFindDirtyRects;
 - (void)textViewBeginDrag;
 - (void)textViewMovePane;
 - (void)textViewSwapPane;
@@ -147,7 +149,7 @@ typedef NS_ENUM(NSInteger, PTYTextViewSelectionExtensionUnit) {
 - (BOOL)textViewCanSelectOutputOfLastCommand;
 - (BOOL)textViewCanSelectCurrentCommand;
 - (NSColor *)textViewCursorGuideColor;
-- (BOOL)textViewUseHFSPlusMapping;
+- (iTermUnicodeNormalization)textViewUnicodeNormalizationForm;
 - (NSColor *)textViewBadgeColor;
 - (NSDictionary *)textViewVariables;
 - (BOOL)textViewSuppressingAllOutput;
@@ -170,6 +172,11 @@ typedef NS_ENUM(NSInteger, PTYTextViewSelectionExtensionUnit) {
 
 // The background color in the color map changed.
 - (void)textViewBackgroundColorDidChange;
+
+// Describes the current user, host, and path.
+- (NSURL *)textViewCurrentLocation;
+- (void)textViewBurySession;
+- (void)textViewShowHoverURL:(NSString *)url;
 
 @end
 
@@ -207,6 +214,10 @@ typedef NS_ENUM(NSInteger, PTYTextViewSelectionExtensionUnit) {
 
 // Draw text with light font smoothing?
 @property(nonatomic, assign) iTermThinStrokesSetting thinStrokes;
+
+// Are ligatures allowed?
+@property(nonatomic, assign) BOOL asciiLigatures;
+@property(nonatomic, assign) BOOL nonAsciiLigatures;
 
 // Use a bright version of the text color for bold text?
 @property(nonatomic, assign) BOOL useBrightBold;
@@ -401,8 +412,7 @@ typedef void (^PTYTextViewDrawingHookBlock)(iTermTextDrawingHelper *);
 // Begins a new search. You may need to call continueFind repeatedly after this.
 - (void)findString:(NSString*)aString
   forwardDirection:(BOOL)direction
-      ignoringCase:(BOOL)ignoreCase
-             regex:(BOOL)regex
+      mode:(iTermFindMode)mode
         withOffset:(int)offset;
 
 // Remove highlighted terms from previous search.
@@ -506,6 +516,8 @@ typedef void (^PTYTextViewDrawingHookBlock)(iTermTextDrawingHelper *);
 - (void)resetMouseLocationToRefuseFirstResponderAt;
 
 - (void)setTransparencyAffectsOnlyDefaultBackgroundColor:(BOOL)value;
+
+- (void)showFireworks;
 
 #pragma mark - Testing only
 

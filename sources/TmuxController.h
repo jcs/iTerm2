@@ -44,6 +44,7 @@ extern NSString *const kTmuxControllerSessionWasRenamed;
 @property(nonatomic, readonly) int sessionId;
 @property(nonatomic, readonly) BOOL hasOutstandingWindowResize;
 @property(nonatomic, readonly, getter=isAttached) BOOL attached;
+@property(nonatomic, readonly) BOOL detaching;
 
 - (instancetype)initWithGateway:(TmuxGateway *)gateway clientName:(NSString *)clientName;
 - (void)openWindowsInitial;
@@ -118,6 +119,9 @@ extern NSString *const kTmuxControllerSessionWasRenamed;
 - (void)setHotkeyForWindowPane:(int)windowPane to:(NSDictionary *)hotkey;
 - (NSDictionary *)hotkeyForWindowPane:(int)windowPane;
 
+- (void)setTabColorString:(NSString *)colorString forWindowPane:(int)windowPane;
+- (NSString *)tabColorStringForWindowPane:(int)windowPane;
+
 - (void)linkWindowId:(int)windowId
            inSession:(NSString *)sessionName
            toSession:(NSString *)targetSession;
@@ -140,5 +144,8 @@ extern NSString *const kTmuxControllerSessionWasRenamed;
 - (void)toggleZoomForPane:(int)pane;
 - (void)setPartialWindowIdOrder:(NSArray *)partialOrder;
 - (void)setCurrentWindow:(int)windowId;
+- (void)checkForUTF8;
+
+- (void)clearHistoryForWindowPane:(int)windowPane;
 
 @end

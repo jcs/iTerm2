@@ -52,6 +52,7 @@
 @property(nonatomic, readonly) NSSize tmuxSize;
 @property(nonatomic, copy) NSString *tmuxWindowName;
 @property (readonly, getter=isTmuxTab) BOOL tmuxTab;
+@property (nonatomic, readonly) PTYTabState state;
 
 // If non-nil, this session may not change size. This is useful when you want
 // to change a session's size. You can resize it, lock it, and then
@@ -92,6 +93,10 @@
        nonAsciiFont:(NSFont *)nonAsciiFont
            hSpacing:(double)hs
            vSpacing:(double)vs;
+
++ (NSDictionary *)repairedArrangement:(NSDictionary *)arrangement
+             replacingProfileWithGUID:(NSString *)badGuid
+                          withProfile:(Profile *)goodProfile;
 
 // init/dealloc
 - (instancetype)initWithSession:(PTYSession*)session;
@@ -200,5 +205,7 @@
 
 // Update icons in tab.
 - (void)updateIcon;
+
+- (void)checkInvariants:(NSString *)when;
 
 @end

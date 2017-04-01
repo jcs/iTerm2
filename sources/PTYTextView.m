@@ -31,12 +31,15 @@
 #import "iTermTextDrawingHelper.h"
 #import "iTermTextExtractor.h"
 #import "iTermTextViewAccessibilityHelper.h"
+#import "iTermURLActionFactory.h"
 #import "iTermWebViewWrapperViewController.h"
 #import "iTermWarning.h"
 #import "MovePaneController.h"
 #import "MovingAverage.h"
+#import "NSCharacterSet+iTerm.h"
 #import "NSColor+iTerm.h"
 #import "NSData+iTerm.h"
+#import "NSDictionary+iTerm.h"
 #import "NSEvent+iTerm.h"
 #import "NSFileManager+iTerm.h"
 #import "NSImage+iTerm.h"
@@ -123,7 +126,7 @@ static const int kDragThreshold = 3;
 @property(nonatomic, retain) iTermFindCursorView *findCursorView;
 @property(nonatomic, retain) NSWindow *findCursorWindow;  // For find-cursor animation
 @property(nonatomic, retain) iTermQuickLookController *quickLookController;
-@property (strong, readwrite, nullable) NSTouchBar *touchBar;
+@property(strong, readwrite, nullable) NSTouchBar *touchBar;
 
 // Set when a context menu opens, nilled when it closes. If the data source changes between when we
 // ask the context menu to open and when the main thread enters a tracking runloop, the text under
@@ -131,7 +134,6 @@ static const int kDragThreshold = 3;
 // See issue 4048.
 @property(nonatomic, copy) NSString *savedSelectedText;
 @end
-
 
 @implementation PTYTextView {
     // -refresh does not want to be reentrant.
@@ -254,6 +256,8 @@ static const int kDragThreshold = 3;
     
     // Detects when the user is trying to scroll in alt screen with the scroll wheel.
     iTermAltScreenMouseScrollInferer *_altScreenMouseScrollInferer;
+
+    NSEvent *_eventBeingHandled;
 }
 
 
@@ -284,7 +288,6 @@ static const int kDragThreshold = 3;
         _drawingHelper.underlinedRange =
             VT100GridAbsWindowedRangeMake(VT100GridAbsCoordRangeMake(-1, -1, -1, -1), 0, 0);
         _timeOfLastBlink = [NSDate timeIntervalSinceReferenceDate];
-        [[self window] useOptimizedDrawing:YES];
 
         // register for drag and drop
         [self registerForDraggedTypes: [NSArray arrayWithObjects:
@@ -304,10 +307,6 @@ static const int kDragThreshold = 3;
         [[NSNotificationCenter defaultCenter] addObserver:self
                                                  selector:@selector(_pointerSettingsChanged:)
                                                      name:kPointerPrefsChangedNotification
-                                                   object:nil];
-        [[NSNotificationCenter defaultCenter] addObserver:self
-                                                 selector:@selector(flagsChangedNotification:)
-                                                     name:@"iTermFlagsChanged"
                                                    object:nil];
         [[NSNotificationCenter defaultCenter] addObserver:self
                                                  selector:@selector(hostnameLookupFailed:)
@@ -359,6 +358,7 @@ static const int kDragThreshold = 3;
         
         _altScreenMouseScrollInferer = [[iTermAltScreenMouseScrollInferer alloc] init];
         _altScreenMouseScrollInferer.delegate = self;
+        [self refuseFirstResponderAtCurrentMouseLocation];
     }
     return self;
 }
@@ -532,6 +532,7 @@ static const int kDragThreshold = 3;
 - (BOOL)resignFirstResponder {
     [_altScreenMouseScrollInferer firstResponderDidChange];
     [self removeUnderline];
+    [self placeFindCursorOnAutoHide];
     DLog(@"resignFirstResponder %@", self);
     DLog(@"%@", [NSThread callStackSymbols]);
     return YES;
@@ -596,6 +597,16 @@ static const int kDragThreshold = 3;
 
 - (void)setThinStrokes:(iTermThinStrokesSetting)thinStrokes {
     _thinStrokes = thinStrokes;
+    [self setNeedsDisplay:YES];
+}
+
+- (void)setAsciiLigatures:(BOOL)asciiLigatures {
+    _asciiLigatures = asciiLigatures;
+    [self setNeedsDisplay:YES];
+}
+
+- (void)setNonAsciiLigatures:(BOOL)nonAsciiLigatures {
+    _nonAsciiLigatures = nonAsciiLigatures;
     [self setNeedsDisplay:YES];
 }
 
@@ -1081,7 +1092,7 @@ static const int kDragThreshold = 3;
     _drawingHelper.excess = [self excess];
     _drawingHelper.selection = _selection;
     _drawingHelper.ambiguousIsDoubleWidth = [_delegate textViewAmbiguousWidthCharsAreDoubleWidth];
-    _drawingHelper.useHFSPlusMapping = [_delegate textViewUseHFSPlusMapping];
+    _drawingHelper.normalization = [_delegate textViewUnicodeNormalizationForm];
     _drawingHelper.hasBackgroundImage = [_delegate textViewHasBackgroundImage];
     _drawingHelper.cursorGuideColor = [_delegate textViewCursorGuideColor];
     _drawingHelper.gridSize = VT100GridSizeMake(_dataSource.width, _dataSource.height);
@@ -1106,6 +1117,8 @@ static const int kDragThreshold = 3;
     _drawingHelper.underlineOffset = [self minimumUnderlineOffset];
     _drawingHelper.boldAllowed = _useBoldFont;
     _drawingHelper.unicodeVersion = [_delegate textViewUnicodeVersion];
+    _drawingHelper.asciiLigatures = _primaryFont.hasDefaultLigatures || _asciiLigatures;
+    _drawingHelper.nonAsciiLigatures = _secondaryFont.hasDefaultLigatures || _nonAsciiLigatures;
     
     const NSRect *rectArray;
     NSInteger rectCount;
@@ -1386,11 +1399,29 @@ static const int kDragThreshold = 3;
     // Hide the cursor
     [NSCursor setHiddenUntilMouseMoves:YES];
 
-    if ([_keyBindingEmulator handlesEvent:event]) {
-        DLog(@"iTermNSKeyBindingEmulator reports that event is handled, sending to interpretKeyEvents.");
-        [self interpretKeyEvents:@[ event ]];
+    NSMutableArray *eventsToHandle = [NSMutableArray array];
+    BOOL pointlessly;
+    if ([_keyBindingEmulator handlesEvent:event pointlessly:&pointlessly extraEvents:eventsToHandle]) {
+        if (!pointlessly) {
+            DLog(@"iTermNSKeyBindingEmulator reports that event is handled, sending to interpretKeyEvents.");
+            [self interpretKeyEvents:@[ event ]];
+        } else {
+            [self handleKeyDownEvent:event eschewCocoaTextHandling:YES];
+        }
         return;
     }
+    [eventsToHandle addObject:event];
+    for (NSEvent *event in eventsToHandle) {
+        [self handleKeyDownEvent:event eschewCocoaTextHandling:NO];
+    }
+}
+
+- (void)handleKeyDownEvent:(NSEvent *)event eschewCocoaTextHandling:(BOOL)eschewCocoaTextHandling {
+    id delegate = [self delegate];
+    unsigned int modflag = [event modifierFlags];
+    unsigned short keyCode = [event keyCode];
+    BOOL rightAltPressed = (modflag & NSRightAlternateKeyMask) == NSRightAlternateKeyMask;
+    BOOL leftAltPressed = (modflag & NSAlternateKeyMask) == NSAlternateKeyMask && !rightAltPressed;
 
     // Should we process the event immediately in the delegate?
     if (!_hadMarkedTextBeforeHandlingKeypressEvent &&
@@ -1460,15 +1491,21 @@ static const int kDragThreshold = 3;
         // calls as needed in -insertText and -doCommandBySelector.
         gCurrentKeyEventTextView = [[self retain] autorelease];
 
-        if ([iTermAdvancedSettingsModel experimentalKeyHandling]) {
-          // This may cause -insertText:replacementRange: or -doCommandBySelector: to be called.
-          // These methods have a side-effect of setting _keyPressHandled if they dispatched the event
-          // to the delegate. They might not get called: for example, if you hold down certain keys
-          // then repeats might be ignored, or the IME might handle it internally (such as when you press
-          // "L" in AquaSKK's Hiragana mode to enter ASCII mode. See pull request 279 for more on this.
-          [self.inputContext handleEvent:event];
-        } else {
-          [self interpretKeyEvents:[NSArray arrayWithObject:event]];
+        if (!eschewCocoaTextHandling) {
+            _eventBeingHandled = event;
+            if ([iTermAdvancedSettingsModel experimentalKeyHandling]) {
+              // This may cause -insertText:replacementRange: or -doCommandBySelector: to be called.
+              // These methods have a side-effect of setting _keyPressHandled if they dispatched the event
+              // to the delegate. They might not get called: for example, if you hold down certain keys
+              // then repeats might be ignored, or the IME might handle it internally (such as when you press
+              // "L" in AquaSKK's Hiragana mode to enter ASCII mode. See pull request 279 for more on this.
+              [self.inputContext handleEvent:event];
+            } else {
+              [self interpretKeyEvents:[NSArray arrayWithObject:event]];
+            }
+            if (_eventBeingHandled == event) {
+                _eventBeingHandled = nil;
+            }
         }
         gCurrentKeyEventTextView = nil;
 
@@ -1476,6 +1513,10 @@ static const int kDragThreshold = 3;
         BOOL shouldPassToDelegate = (!_hadMarkedTextBeforeHandlingKeypressEvent && !_keyPressHandled && ![self hasMarkedText]);
         if ([iTermAdvancedSettingsModel experimentalKeyHandling]) {
             shouldPassToDelegate &= event.isARepeat;
+        }
+        if (eschewCocoaTextHandling) {
+            // It was never sent tp cocoa so the delegate must take it
+            shouldPassToDelegate = YES;
         }
         if (shouldPassToDelegate) {
             DLog(@"PTYTextView keyDown unhandled (likely repeated) keypress with no IME, send to delegate");
@@ -1671,6 +1712,11 @@ static const int kDragThreshold = 3;
 }
 
 - (void)updateCursor:(NSEvent *)event {
+    [self updateCursor:event action:nil];
+}
+
+- (void)updateCursor:(NSEvent *)event action:(URLAction *)action {
+    NSString *hover = nil;
     BOOL changed = NO;
     if (([event modifierFlags] & kDragPaneModifiers) == kDragPaneModifiers) {
         changed = [self setCursor:[NSCursor openHandCursor]];
@@ -1678,6 +1724,9 @@ static const int kDragThreshold = 3;
         changed = [self setCursor:[NSCursor crosshairCursor]];
     } else if (([event modifierFlags] & (NSAlternateKeyMask | NSCommandKeyMask)) == NSCommandKeyMask) {
         changed = [self setCursor:[NSCursor pointingHandCursor]];
+        if (action.hover && action.string.length) {
+            hover = action.string;
+        }
     } else if ([self mouseIsOverImageInEvent:event]) {
         changed = [self setCursor:[NSCursor arrowCursor]];
     } else if ([self xtermMouseReporting] &&
@@ -1689,6 +1738,7 @@ static const int kDragThreshold = 3;
     if (changed) {
         [self.enclosingScrollView setDocumentCursor:cursor_];
     }
+    [_delegate textViewShowHoverURL:hover];
 }
 
 - (BOOL)hasUnderline {
@@ -1710,7 +1760,8 @@ static const int kDragThreshold = 3;
 }
 
 // Update range of underlined chars indicating cmd-clicakble url.
-- (void)updateUnderlinedURLs:(NSEvent *)event {
+- (URLAction *)updateUnderlinedURLs:(NSEvent *)event {
+    URLAction *action = nil;
     if (([event modifierFlags] & NSCommandKeyMask) && (self.window.isKeyWindow ||
                                                        [iTermAdvancedSettingsModel cmdClickWhenInactiveInvokesSemanticHistory])) {
         NSPoint screenPoint = [NSEvent mouseLocation];
@@ -1721,18 +1772,18 @@ static const int kDragThreshold = 3;
         NSPoint locationInTextView = [self convertPoint:windowRect.origin fromView: nil];
         if (!NSPointInRect(locationInTextView, [self bounds])) {
             [self removeUnderline];
-            return;
+            return action;
         }
         NSPoint viewPoint = [self windowLocationToRowCol:windowRect.origin allowRightMarginOverflow:NO];
         int x = viewPoint.x;
         int y = viewPoint.y;
         if (![iTermPreferences boolForKey:kPreferenceKeyCmdClickOpensURLs] || y < 0) {
             [self removeUnderline];
-            return;
+            return action;
         } else {
-            URLAction *action = [self urlActionForClickAtX:x
-                                                         y:y
-                                    respectingHardNewlines:![iTermAdvancedSettingsModel ignoreHardNewlinesInURLs]];
+            action = [self urlActionForClickAtX:x
+                                              y:y
+                         respectingHardNewlines:![iTermAdvancedSettingsModel ignoreHardNewlinesInURLs]];
             if (action) {
                 _drawingHelper.underlinedRange = VT100GridAbsWindowedRangeFromRelative(action.range, [_dataSource totalScrollbackOverflow]);
 
@@ -1764,25 +1815,22 @@ static const int kDragThreshold = 3;
                 }
             } else {
                 [self removeUnderline];
-                return;
+                return action;
             }
         }
     } else {
         [self removeUnderline];
-        return;
+        return action;
     }
 
     [self setNeedsDisplay:YES];  // It would be better to just display the underlined/formerly underlined area.
+    return action;
 }
 
 - (void)flagsChanged:(NSEvent *)theEvent {
-    [self updateCursor:theEvent];
-    [self updateUnderlinedURLs:theEvent];
+    URLAction *action = [self updateUnderlinedURLs:theEvent];
+    [self updateCursor:theEvent action:action];
     [super flagsChanged:theEvent];
-}
-
-- (void)flagsChangedNotification:(NSNotification *)notification {
-    [self updateCursor:(NSEvent *)[notification object]];
 }
 
 - (void)swipeWithEvent:(NSEvent *)event
@@ -1841,6 +1889,7 @@ static const int kDragThreshold = 3;
     }
     [self resetMouseLocationToRefuseFirstResponderAt];
     [self updateUnderlinedURLs:event];
+    [_delegate textViewShowHoverURL:nil];
 }
 
 - (void)mouseEntered:(NSEvent *)event {
@@ -1853,8 +1902,7 @@ static const int kDragThreshold = 3;
             [self setNeedsDisplay:YES];
         }
     }
-    [self updateCursor:event];
-    [self updateUnderlinedURLs:event];
+    [self updateCursor:event action:[self updateUnderlinedURLs:event]];
     if ([iTermPreferences boolForKey:kPreferenceKeyFocusFollowsMouse] &&
         [[self window] alphaValue] > 0 &&
         ![NSApp modalWindow]) {
@@ -1868,6 +1916,7 @@ static const int kDragThreshold = 3;
             obj = [[NSApp keyWindow] windowController];
         }
         if (!NSEqualPoints(_mouseLocationToRefuseFirstResponderAt, [NSEvent mouseLocation])) {
+            DLog(@"%p Mouse location is %@, refusal point is %@", self, NSStringFromPoint([NSEvent mouseLocation]), NSStringFromPoint(_mouseLocationToRefuseFirstResponderAt));
             if ([iTermAdvancedSettingsModel stealKeyFocus]) {
                 if (![obj disableFocusFollowsMouse]) {
                     [[self window] makeKeyWindow];
@@ -1880,6 +1929,8 @@ static const int kDragThreshold = 3;
             if ([self isInKeyWindow]) {
                 [_delegate textViewDidBecomeFirstResponder];
             }
+        } else {
+            DLog(@"%p Refusing first responder on enter", self);
         }
     }
 }
@@ -2350,9 +2401,9 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
 
 - (void)mouseMoved:(NSEvent *)event {
     [self resetMouseLocationToRefuseFirstResponderAt];
-    [self updateUnderlinedURLs:event];
+    URLAction *action = [self updateUnderlinedURLs:event];
     [self reportMouseEvent:event];
-    [self updateCursor:event];
+    [self updateCursor:event action:action];
 }
 
 - (void)mouseDragged:(NSEvent *)event
@@ -2532,7 +2583,7 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
                 break;
             }
             case kURLActionOpenURL:
-                [self findUrlInString:action.string andOpenInBackground:openInBackground];
+                [self openURL:[NSURL URLWithUserSuppliedString:action.string] inBackground:openInBackground];
                 break;
 
             case kURLActionSmartSelectionAction: {
@@ -2575,10 +2626,10 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
                                         workingDirectory:(NSString *)workingDirectory {
     NSMutableDictionary *subs = [[[_delegate textViewVariables] mutableCopy] autorelease];
     NSDictionary *semanticHistorySubs =
-        @{ kSemanticHistoryPrefixSubstitutionKey: [prefix stringWithEscapedShellCharacters] ?: @"",
-           kSemanticHistorySuffixSubstitutionKey: [suffix stringWithEscapedShellCharacters] ?: @"",
-           kSemanticHistoryPathSubstitutionKey: [path stringWithEscapedShellCharacters] ?: @"",
-           kSemanticHistoryWorkingDirectorySubstitutionKey: [workingDirectory stringWithEscapedShellCharacters] ?: @"" };
+        @{ kSemanticHistoryPrefixSubstitutionKey: [prefix stringWithEscapedShellCharactersIncludingNewlines:YES] ?: @"",
+           kSemanticHistorySuffixSubstitutionKey: [suffix stringWithEscapedShellCharactersIncludingNewlines:YES] ?: @"",
+           kSemanticHistoryPathSubstitutionKey: [path stringWithEscapedShellCharactersIncludingNewlines:YES] ?: @"",
+           kSemanticHistoryWorkingDirectorySubstitutionKey: [workingDirectory stringWithEscapedShellCharactersIncludingNewlines:YES] ?: @"" };
     [subs addEntriesFromDictionary:semanticHistorySubs];
     return subs;
 }
@@ -2721,14 +2772,18 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
 }
 
 - (BOOL)showWebkitPopoverAtPoint:(NSPoint)pointInWindow url:(NSURL *)url {
-    WKWebView *webView = [[iTermWebViewPool sharedInstance] webView];
+    WKWebView *webView = [[iTermWebViewFactory sharedInstance] webView];
     if (webView) {
-        NSURLRequest *request =
-            [[[NSURLRequest alloc] initWithURL:url] autorelease];
-        [webView loadRequest:request];
-
+        if ([[url.scheme lowercaseString] isEqualToString:@"http"]) {
+            [webView loadHTMLString:@"This site cannot be displayed in QuickLook because of Application Transport Security. Only HTTPS URLs can be previewed." baseURL:nil];
+        } else {
+            NSURLRequest *request =
+                [[[NSURLRequest alloc] initWithURL:url] autorelease];
+            [webView loadRequest:request];
+        }
         NSPopover *popover = [[[NSPopover alloc] init] autorelease];
-        NSViewController *viewController = [[[iTermWebViewWrapperViewController alloc] initWithWebView:webView] autorelease];
+        NSViewController *viewController = [[[iTermWebViewWrapperViewController alloc] initWithWebView:webView
+                                                                                             backupURL:url] autorelease];
         popover.contentViewController = viewController;
         popover.contentSize = viewController.view.frame.size;
         NSRect rect = NSMakeRect(pointInWindow.x - _charWidth / 2,
@@ -3021,12 +3076,12 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
     NSString *theCommand = nil;
     switch ([warning runModal]) {
         case kiTermWarningSelection0:
-            theCommand = @"curl -L https://iterm2.com/misc/install_shell_integration_and_utilities.sh | bash\n";
+            theCommand = @"curl -L https://iterm2.com/shell_integration/install_shell_integration_and_utilities.sh | bash\n";
             break;
         case kiTermWarningSelection1:
             return;
         case kiTermWarningSelection2:
-            theCommand = @"curl -L https://iterm2.com/misc/install_shell_integration.sh | bash\n";
+            theCommand = @"curl -L https://iterm2.com/shell_integration/install_shell_integration.sh | bash\n";
             break;
         case kItermWarningSelectionError:
             assert(false);
@@ -3475,7 +3530,7 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
                              isBackground:YES];
     fgColor = [fgColor colorByPremultiplyingAlphaWithColor:bgColor];
 
-    int underlineStyle = c.underline ? (NSUnderlineStyleSingle | NSUnderlineByWordMask) : 0;
+    int underlineStyle = (c.urlCode || c.underline) ? (NSUnderlineStyleSingle | NSUnderlineByWordMask) : 0;
 
     BOOL isItalic = c.italic;
     PTYFontInfo *fontInfo = [self getFontForChar:c.code
@@ -3497,11 +3552,16 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
             font = [NSFont systemFontOfSize:size];
         }
     }
-    return @{ NSForegroundColorAttributeName: fgColor,
-              NSBackgroundColorAttributeName: bgColor,
-              NSFontAttributeName: font,
-              NSParagraphStyleAttributeName: paragraphStyle,
-              NSUnderlineStyleAttributeName: @(underlineStyle) };
+    NSDictionary *attributes = @{ NSForegroundColorAttributeName: fgColor,
+                                  NSBackgroundColorAttributeName: bgColor,
+                                  NSFontAttributeName: font,
+                                  NSParagraphStyleAttributeName: paragraphStyle,
+                                  NSUnderlineStyleAttributeName: @(underlineStyle) };
+    if ([iTermAdvancedSettingsModel excludeBackgroundColorsFromCopiedStyle]) {
+        attributes = [attributes dictionaryByRemovingObjectForKey:NSBackgroundColorAttributeName];
+    }
+
+    return attributes;
 }
 
 - (void)paste:(id)sender
@@ -3583,6 +3643,8 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
     }
     if ([item action]==@selector(restartTextViewSession:)) {
         return [_delegate isRestartable];
+    } else if ([item action]==@selector(bury:)) {
+        return YES;
     }
 
     if ([item action]==@selector(mail:) ||
@@ -3645,26 +3707,20 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
     return [_selection hasSelection] && [_selection length] <= width;
 }
 
-- (SEL)selectorForSmartSelectionAction:(NSDictionary *)action
-{
+- (NSDictionary<NSNumber *, NSString *> *)smartSelectionActionSelectorDictionary {
     // The selector's name must begin with contextMenuAction to
     // pass validateMenuItem.
-    switch ([ContextMenuActionPrefsController actionForActionDict:action]) {
-        case kOpenFileContextMenuAction:
-            return @selector(contextMenuActionOpenFile:);
+    return @{ @(kOpenFileContextMenuAction): NSStringFromSelector(@selector(contextMenuActionOpenFile:)),
+              @(kOpenUrlContextMenuAction): NSStringFromSelector(@selector(contextMenuActionOpenURL:)),
+              @(kRunCommandContextMenuAction): NSStringFromSelector(@selector(contextMenuActionRunCommand:)),
+              @(kRunCoprocessContextMenuAction): NSStringFromSelector(@selector(contextMenuActionRunCoprocess:)),
+              @(kSendTextContextMenuAction): NSStringFromSelector(@selector(contextMenuActionSendText:)) };
+}
 
-        case kOpenUrlContextMenuAction:
-            return @selector(contextMenuActionOpenURL:);
-
-        case kRunCommandContextMenuAction:
-            return @selector(contextMenuActionRunCommand:);
-
-        case kRunCoprocessContextMenuAction:
-            return @selector(contextMenuActionRunCoprocess:);
-
-        case kSendTextContextMenuAction:
-            return @selector(contextMenuActionSendText:);
-    }
+- (SEL)selectorForSmartSelectionAction:(NSDictionary *)action {
+    NSDictionary<NSNumber *, NSString *> *dictionary = [self smartSelectionActionSelectorDictionary];
+    ContextMenuActions contextMenuAction = [ContextMenuActionPrefsController actionForActionDict:action];
+    return NSSelectorFromString(dictionary[@(contextMenuAction)]);
 }
 
 - (BOOL)addCustomActionsToMenu:(NSMenu *)theMenu matchingText:(NSString *)textWindow line:(int)line {
@@ -4079,7 +4135,7 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
                            by:(PTYTextViewSelectionExtensionUnit)unit {
     // Ensure the unit is valid, since it comes from preferences.
     if (![self unitIsValid:unit]) {
-        ELog(@"ERROR: Unrecognized unit enumerated value %@, treating as character.", @(unit));
+        XLog(@"ERROR: Unrecognized unit enumerated value %@, treating as character.", @(unit));
         unit = kPTYTextViewSelectionExtensionUnitCharacter;
     }
 
@@ -4186,7 +4242,7 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
     panel.canCreateDirectories = YES;
     [panel setExtensionHidden:NO];
 
-    if ([panel runModal] == NSOKButton) {
+    if ([panel runModal] == NSModalResponseOK) {
         NSBitmapImageFileType fileType = NSPNGFileType;
         NSString *filename = [panel legacyFilename];
         if ([filename hasSuffix:@".bmp"]) {
@@ -4253,12 +4309,9 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
                           (int)imageInfo.image.size.width,
                           (int)imageInfo.image.size.height];
 
-        NSAlert *alert = [NSAlert alertWithMessageText:text
-                                         defaultButton:@"OK"
-                                       alternateButton:nil
-                                           otherButton:nil
-                             informativeTextWithFormat:@""];
-
+        NSAlert *alert = [[[NSAlert alloc] init] autorelease];
+        alert.messageText = text;
+        [alert addButtonWithTitle:@"OK"];
         [alert layout];
         [alert runModal];
     }
@@ -4553,7 +4606,17 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
         [[self delegate] menuForEvent:nil menu:theMenu];
     }
 
+    // Separator
+    [theMenu addItem:[NSMenuItem separatorItem]];
+    [theMenu addItemWithTitle:@"Bury"
+                       action:@selector(bury:)
+                keyEquivalent:@""];
+
     return theMenu;
+}
+
+- (IBAction)bury:(id)sender {
+    [_delegate textViewBurySession];
 }
 
 - (void)mail:(id)sender
@@ -4659,15 +4722,13 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
                 [files componentsJoinedByString:@", "],
                 path.username, path.hostname, path.path];
     }
-    NSAlert *alert = [NSAlert alertWithMessageText:text
-                                     defaultButton:@"OK"
-                                   alternateButton:@"Cancel"
-                                       otherButton:nil
-                         informativeTextWithFormat:@""];
-
+    NSAlert *alert = [[[NSAlert alloc] init] autorelease];
+    alert.messageText = text;
+    [alert addButtonWithTitle:@"OK"];
+    [alert addButtonWithTitle:@"Cancel"];
     [alert layout];
     NSInteger button = [alert runModal];
-    return (button == NSAlertDefaultReturn);
+    return (button == NSAlertFirstButtonReturn);
 }
 
 - (void)maybeUpload:(NSArray *)tuple {
@@ -4800,9 +4861,12 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
         path = [searchPaths objectAtIndex:0];
     }
 
-    NSString* nowStr = [[NSDate date] descriptionWithCalendarFormat:@"Log at %Y-%m-%d %H.%M.%S.txt"
-                                                           timeZone:nil
-                                                             locale:[[NSUserDefaults standardUserDefaults] dictionaryRepresentation]];
+    NSDateFormatter *dateFormatter = [[[NSDateFormatter alloc] init] autorelease];
+    dateFormatter.dateFormat = [NSDateFormatter dateFormatFromTemplate:@"yyyy-MM-dd hh-mm-ss" options:0 locale:nil];
+    NSString *formattedDate = [dateFormatter stringFromDate:[NSDate date]];
+    // Stupid mac os can't have colons in filenames
+    formattedDate = [formattedDate stringByReplacingOccurrencesOfString:@":" withString:@"-"];
+    NSString *nowStr = [NSString stringWithFormat:@"Log at %@.txt", formattedDate];
 
     if ([aSavePanel legacyRunModalForDirectory:path file:nowStr] == NSFileHandlingPanelOKButton) {
         if (![aData writeToFile:[aSavePanel legacyFilename] atomically:YES]) {
@@ -4920,9 +4984,9 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
         // insertText:replacementRange:, unless an IME is in use. An example of when this gets called
         // but we should not pass the event to the delegate is when there is marked text and you press
         // Enter.
-        if (![self hasMarkedText] && !_hadMarkedTextBeforeHandlingKeypressEvent) {
+        if (![self hasMarkedText] && !_hadMarkedTextBeforeHandlingKeypressEvent && _eventBeingHandled) {
             _keyPressHandled = YES;
-            [self.delegate keyDown:[NSApp currentEvent]];
+            [self.delegate keyDown:_eventBeingHandled];
         }
     }
     DLog(@"doCommandBySelector:%@", NSStringFromSelector(aSelector));
@@ -5186,8 +5250,7 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
 
 - (void)findOnPageSetFindString:(NSString*)aString
                forwardDirection:(BOOL)direction
-                   ignoringCase:(BOOL)ignoreCase
-                          regex:(BOOL)regex
+                           mode:(iTermFindMode)mode
                     startingAtX:(int)x
                     startingAtY:(int)y
                      withOffset:(int)offset
@@ -5195,8 +5258,7 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
                 multipleResults:(BOOL)multipleResults {
     [_dataSource setFindString:aString
               forwardDirection:direction
-                  ignoringCase:ignoreCase
-                         regex:regex
+                          mode:mode
                    startingAtX:x
                    startingAtY:y
                     withOffset:offset
@@ -5247,13 +5309,11 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
 
 - (void)findString:(NSString *)aString
   forwardDirection:(BOOL)direction
-      ignoringCase:(BOOL)ignoreCase
-             regex:(BOOL)regex
+              mode:(iTermFindMode)mode
         withOffset:(int)offset {
     [_findOnPageHelper findString:aString
                  forwardDirection:direction
-                     ignoringCase:ignoreCase
-                            regex:regex
+                             mode:mode
                        withOffset:offset
                           context:[_dataSource findContext]
                     numberOfLines:[_dataSource numberOfLines]
@@ -5434,7 +5494,7 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
     return frame;
 }
 
-- (void)createFindCursorWindow {
+- (void)createFindCursorWindowWithFireworks:(BOOL)forceFireworks {
     [self scrollRectToVisible:[self cursorFrame]];
     self.findCursorWindow = [[[NSWindow alloc] initWithContentRect:NSZeroRect
                                                          styleMask:NSBorderlessWindowMask
@@ -5448,10 +5508,18 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
     [[_findCursorWindow animator] setAlphaValue:1];
     _findCursorWindow.opaque = NO;
     [_findCursorWindow makeKeyAndOrderFront:nil];
-    self.findCursorView = [[iTermFindCursorView alloc] initWithFrame:NSMakeRect(0,
-                                                                                0,
-                                                                                screenFrame.size.width,
-                                                                                screenFrame.size.height)];
+
+    if (forceFireworks) {
+        self.findCursorView = [iTermFindCursorView newFireworksViewWithFrame:NSMakeRect(0,
+                                                                                        0,
+                                                                                        screenFrame.size.width,
+                                                                                        screenFrame.size.height)];
+    } else {
+        self.findCursorView = [[iTermFindCursorView alloc] initWithFrame:NSMakeRect(0,
+                                                                                    0,
+                                                                                    screenFrame.size.width,
+                                                                                    screenFrame.size.height)];
+    }
     _findCursorView.delegate = self;
     NSPoint p = [self cursorCenterInFindCursorWindowCoords];
     _findCursorView.cursorPosition = p;
@@ -5459,10 +5527,14 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
 }
 
 - (void)beginFindCursor:(BOOL)hold {
+    [self beginFindCursor:hold forceFireworks:NO];
+}
+
+- (void)beginFindCursor:(BOOL)hold forceFireworks:(BOOL)forceFireworks {
     _drawingHelper.cursorVisible = YES;
     [self setNeedsDisplayInRect:self.cursorFrame];
     if (!_findCursorView) {
-        [self createFindCursorWindow];
+        [self createFindCursorWindowWithFireworks:forceFireworks];
     }
     if (hold) {
         [_findCursorView startTearDownTimer];
@@ -5502,6 +5574,11 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
 - (void)setFindCursorView:(iTermFindCursorView *)view {
     [_findCursorView autorelease];
     _findCursorView = [view retain];
+}
+
+- (void)showFireworks {
+    [self beginFindCursor:YES forceFireworks:YES];
+    [self placeFindCursorOnAutoHide];
 }
 
 - (BOOL)getAndResetChangedSinceLastExpose
@@ -5615,7 +5692,7 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
                         [_delegate textViewAmbiguousWidthCharsAreDoubleWidth],
                         NULL,
                         NULL,
-                        [_delegate textViewUseHFSPlusMapping],
+                        [_delegate textViewUnicodeNormalizationForm],
                         [_delegate textViewUnicodeVersion]);
 
     // Count how many additional cells are needed due to double-width chars
@@ -5774,68 +5851,6 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
     return NO;
 }
 
-+ (NSCharacterSet *)urlCharacterSet
-{
-    static NSMutableCharacterSet* urlChars;
-    if (!urlChars) {
-        NSString *chars = [iTermAdvancedSettingsModel URLCharacterSet];
-        urlChars = [[NSMutableCharacterSet characterSetWithCharactersInString:chars] retain];
-        [urlChars formUnionWithCharacterSet:[NSCharacterSet alphanumericCharacterSet]];
-        [urlChars retain];
-    }
-
-    return urlChars;
-}
-
-+ (NSCharacterSet *)filenameCharacterSet
-{
-    static NSMutableCharacterSet* filenameChars;
-    if (!filenameChars) {
-        filenameChars = [[NSCharacterSet whitespaceCharacterSet] mutableCopy];
-        [filenameChars formUnionWithCharacterSet:[PTYTextView urlCharacterSet]];
-    }
-
-    return filenameChars;
-}
-
-- (BOOL)stringLooksLikeURL:(NSString*)s {
-    // This is much harder than it sounds.
-    // [NSURL URLWithString] is supposed to do this, but it doesn't accept IDN-encoded domains like
-    // http://例子.测试
-    // Just about any word can be a URL in the local search path. The code that calls this prefers false
-    // positives, so just make sure it's not empty and doesn't have illegal characters.
-    if ([s rangeOfCharacterFromSet:[[PTYTextView urlCharacterSet] invertedSet]].location != NSNotFound) {
-        return NO;
-    }
-    if ([s length] == 0) {
-        return NO;
-    }
-
-    NSRange slashRange = [s rangeOfString:@"/"];
-    if (slashRange.location == 0) {
-        // URLs never start with a slash
-        return NO;
-    }
-    if (slashRange.length > 0) {
-        // Contains a slash but does not start with it.
-        return YES;
-    }
-    
-    NSString *ipRegex = @"^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$";
-    if ([s rangeOfRegex:ipRegex].location != NSNotFound) {
-        // IP addresses as dotted quad
-        return YES;
-    }
-    
-    NSString *hostnameRegex = @"^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\\-]*[a-zA-Z0-9])\\.)+([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\\-]*[A-Za-z0-9])$";
-    if ([s rangeOfRegex:hostnameRegex].location != NSNotFound) {
-        // A hostname with at least two components.
-        return YES;
-    }
-    
-    return NO;
-}
-
 // Any sequence of words separated by spaces or tabs could be a filename. Search the neighborhood
 // of words for a valid filename. For example, beforeString could be "blah blah ~/Library/Appli" and
 // afterString could be "cation Support/Screen Sharing foo bar baz". This searches outward from
@@ -5926,34 +5941,6 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
         return nil;
     }
     [extractor restrictToLogicalWindowIncludingCoord:coord];
-    NSMutableIndexSet *continuationCharsCoords = [NSMutableIndexSet indexSet];
-    NSMutableArray *prefixCoords = [NSMutableArray array];
-    NSString *prefix = [extractor wrappedStringAt:coord
-                                          forward:NO
-                              respectHardNewlines:respectHardNewlines
-                                         maxChars:[iTermAdvancedSettingsModel maxSemanticHistoryPrefixOrSuffix]
-                                continuationChars:continuationCharsCoords
-                              convertNullsToSpace:NO
-                                           coords:prefixCoords];
-
-    NSMutableArray *suffixCoords = [NSMutableArray array];
-    NSString *suffix = [extractor wrappedStringAt:coord
-                                          forward:YES
-                              respectHardNewlines:respectHardNewlines
-                                         maxChars:[iTermAdvancedSettingsModel maxSemanticHistoryPrefixOrSuffix]
-                                continuationChars:continuationCharsCoords
-                              convertNullsToSpace:NO
-                                           coords:suffixCoords];
-
-    NSString *possibleFilePart1 =
-        [prefix substringIncludingOffset:[prefix length] - 1
-                        fromCharacterSet:[PTYTextView filenameCharacterSet]
-                    charsTakenFromPrefix:NULL];
-    NSString *possibleFilePart2 =
-        [suffix substringIncludingOffset:0
-                        fromCharacterSet:[PTYTextView filenameCharacterSet]
-                    charsTakenFromPrefix:NULL];
-
 
     NSString *workingDirectory = [_dataSource workingDirectoryOnLine:y];
     DLog(@"According to data source, the working directory on line %d is %@", y, workingDirectory);
@@ -5963,172 +5950,18 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
         workingDirectory = [_delegate textViewCurrentWorkingDirectory];
         DLog(@"It is %@", workingDirectory);
     }
-    if (!workingDirectory) {
-        workingDirectory = @"";
-    }
-    int prefixChars = 0;
-    int suffixChars = 0;
-    // First, try to locate an existing filename at this location.
-    NSString *filename =
-        [self.semanticHistoryController pathOfExistingFileFoundWithPrefix:possibleFilePart1
-                                                                   suffix:possibleFilePart2
-                                                         workingDirectory:workingDirectory
-                                                     charsTakenFromPrefix:&prefixChars
-                                                     charsTakenFromSuffix:&suffixChars
-                                                           trimWhitespace:NO];
 
-    // Don't consider / to be a valid filename because it's useless and single/double slashes are
-    // pretty common.
-    if (filename.length > 0 &&
-        ![[filename stringByReplacingOccurrencesOfString:@"//" withString:@"/"] isEqualToString:@"/"]) {
-        DLog(@"Accepting filename from brute force search: %@", filename);
-        // If you clicked on an existing filename, use it.
-        URLAction *action = [URLAction urlActionToOpenExistingFile:filename];
-        VT100GridWindowedRange range;
-
-        if (prefixCoords.count > 0 && prefixChars > 0) {
-            NSInteger i = MAX(0, (NSInteger)prefixCoords.count - prefixChars);
-            range.coordRange.start = [prefixCoords[i] gridCoordValue];
-        } else {
-            // Everything is coming from the suffix (e.g., when mouse is on first char of filename)
-            range.coordRange.start = [suffixCoords[0] gridCoordValue];
-        }
-        VT100GridCoord lastCoord;
-        // Ensure we don't run off the end of suffixCoords if something unexpected happens.
-        // Subtract 1 because the 0th index into suffixCoords corresponds to 1 suffix char being used, etc.
-        NSInteger i = MIN((NSInteger)suffixCoords.count - 1, suffixChars - 1);
-        if (i >= 0) {
-            lastCoord = [suffixCoords[i] gridCoordValue];
-        } else {
-            // This shouldn't happen, but better safe than sorry
-            lastCoord = [[prefixCoords lastObject] gridCoordValue];
-        }
-        range.coordRange.end = [extractor successorOfCoord:lastCoord];
-        range.columnWindow = extractor.logicalWindow;
-        action.range = range;
-
-        action.fullPath = [self.semanticHistoryController getFullPath:filename
-                                                     workingDirectory:workingDirectory
-                                                           lineNumber:NULL];
-        action.workingDirectory = workingDirectory;
-        return action;
-    }
-
-    DLog(@"Brute force search failed, try smart selection.");
-    // Next, see if smart selection matches anything with an action.
-    VT100GridWindowedRange smartRange;
-    SmartMatch *smartMatch = [self smartSelectAtX:x
-                                                y:y
-                                               to:&smartRange
-                                 ignoringNewlines:[iTermAdvancedSettingsModel ignoreHardNewlinesInURLs]
-                                   actionRequired:YES
-                                  respectDividers:[[iTermController sharedInstance] selectionRespectsSoftBoundaries]];
-    NSArray *actions = [SmartSelectionController actionsInRule:smartMatch.rule];
-    DLog(@"  Smart selection produces these actions: %@", actions);
-    if (actions.count) {
-        NSString *content = smartMatch.components[0];
-        if (!respectHardNewlines) {
-            content = [content stringByReplacingOccurrencesOfString:@"\n" withString:@""];
-        }
-        DLog(@"  Actions match this content: %@", content);
-        URLAction *action = [URLAction urlActionToPerformSmartSelectionRule:smartMatch.rule
-                                                                   onString:content];
-        action.range = smartRange;
-        action.selector = [self selectorForSmartSelectionAction:actions[0]];
-        action.representedObject = [ContextMenuActionPrefsController parameterForActionDict:actions[0]
-                                                                      withCaptureComponents:smartMatch.components
-                                                                           workingDirectory:workingDirectory
-                                                                                 remoteHost:[_dataSource remoteHostOnLine:y]];
-        return action;
-    }
-
-    if (_semanticHistoryController.activatesOnAnyString) {
-        // Just do smart selection and let Semantic History take it.
-        smartMatch = [self smartSelectAtX:x
-                                        y:y
-                                       to:&smartRange
-                         ignoringNewlines:[iTermAdvancedSettingsModel ignoreHardNewlinesInURLs]
-                           actionRequired:NO
-                          respectDividers:[[iTermController sharedInstance] selectionRespectsSoftBoundaries]];
-        if (!VT100GridCoordEquals(smartRange.coordRange.start,
-                                  smartRange.coordRange.end)) {
-            NSString *name = smartMatch.components[0];
-            URLAction *action = [URLAction urlActionToOpenExistingFile:name];
-            action.range = smartRange;
-            action.fullPath = name;
-            action.workingDirectory = workingDirectory;
-            return action;
-        }
-    }
-
-    // No luck. Look for something vaguely URL-like.
-    NSString *joined = [prefix stringByAppendingString:suffix];
-    DLog(@"Smart selection found nothing. Look for URL-like things in %@ around offset %d",
-         joined, (int)[prefix length]);
-    NSString *possibleUrl = [joined substringIncludingOffset:[prefix length]
-                                            fromCharacterSet:[PTYTextView urlCharacterSet]
-                                        charsTakenFromPrefix:&prefixChars];
-    DLog(@"String of just permissible chars is %@", possibleUrl);
-    NSString *originalMatch = possibleUrl;
-
-    NSRange urlRange = [possibleUrl rangeOfURLInString];
-    if (urlRange.location == NSNotFound) {
-        DLog(@"No URL found");
-        return nil;
-    }
-    NSString *subUrl = [possibleUrl substringWithRange:urlRange];
-    if ([subUrl rangeOfString:@":"].location == NSNotFound) {
-        NSString *defaultScheme = @"http://";
-        subUrl = [defaultScheme stringByAppendingString:subUrl];
-    }
-    DLog(@"URL in string is %@", subUrl);
-
-    // If subUrl contains a :, make sure something can handle that scheme.
-    NSURL *url = [NSURL URLWithUserSuppliedString:subUrl];
-    BOOL openable = (url && [[NSWorkspace sharedWorkspace] URLForApplicationToOpenURL:url] != nil);
-    DLog(@"There seems to be a scheme. ruledOut=%d", (int)openable);
-
-    VT100GridWindowedRange range;
-    range.coordRange.start = [extractor coord:coord
-                                         plus:-(prefixChars - urlRange.location)
-                               skippingCoords:continuationCharsCoords
-                                      forward:NO];
-    range.coordRange.end = [extractor coord:range.coordRange.start
-                                       plus:urlRange.length
-                             skippingCoords:continuationCharsCoords
-                                    forward:YES];
-    range.columnWindow = extractor.logicalWindow;
-
-    if ([self stringLooksLikeURL:[originalMatch substringWithRange:urlRange]] &&
-         openable) {
-        DLog(@"%@ looks like a URL and it's not ruled out based on scheme. Go for it.",
-             [originalMatch substringWithRange:urlRange]);
-        URLAction *action = [URLAction urlActionToOpenURL:subUrl];
-        action.range = range;
-        return action;
-    } else {
-        DLog(@"%@ is either not plausibly a URL or was ruled out based on scheme. Fail.",
-             [originalMatch substringWithRange:urlRange]);
-    }
-
-    // See if we can conjure up a secure copy path.
-    smartMatch = [self smartSelectAtX:x
-                                    y:y
-                                   to:&smartRange
-                     ignoringNewlines:[iTermAdvancedSettingsModel ignoreHardNewlinesInURLs]
-                       actionRequired:NO
-                      respectDividers:[[iTermController sharedInstance] selectionRespectsSoftBoundaries]];
-    if (smartMatch) {
-        SCPPath *scpPath = [_dataSource scpPathForFile:[smartMatch.components firstObject]
-                                                onLine:y];
-        if (scpPath) {
-            URLAction *action = [URLAction urlActionToSecureCopyFile:scpPath];
-            action.range = range;
-            return action;
-        }
-    }
-
-    return nil;
+    return [iTermURLActionFactory urlActionAtCoord:VT100GridCoordMake(x, y)
+                               respectHardNewlines:respectHardNewlines
+                                  workingDirectory:workingDirectory ?: @""
+                                        remoteHost:[_dataSource remoteHostOnLine:y]
+                                         selectors:[self smartSelectionActionSelectorDictionary]
+                                             rules:_smartSelectionRules
+                                         extractor:extractor
+                         semanticHistoryController:self.semanticHistoryController
+                                       pathFactory:^SCPPath *(NSString *path, int line) {
+                                           return [_dataSource scpPathForFile:path onLine:line];
+                                       }];
 }
 
 - (void)hostnameLookupFailed:(NSNotification *)notification {
@@ -6241,13 +6074,16 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
     }
 }
 
-// Opens a URL in the default browser in background or foreground
-// Don't call this unless you know that iTerm2 is NOT the handler for this scheme!
-- (void)openURL:(NSURL *)url inBackground:(BOOL)background
-{
-    if (background) {
-        NSArray* urls = [NSArray arrayWithObject:url];
-        [[NSWorkspace sharedWorkspace] openURLs:urls
+// If iTerm2 is the handler for the scheme, then the profile is launched directly.
+// Otherwise it's passed to the OS to launch.
+- (void)openURL:(NSURL *)url inBackground:(BOOL)background {
+    DLog(@"openURL:%@ inBackground:%@", url, @(background));
+
+    Profile *profile = [[iTermLaunchServices sharedInstance] profileForScheme:[url scheme]];
+    if (profile) {
+        [_delegate launchProfileInCurrentTerminal:profile withURL:url.absoluteString];
+    } else if (background) {
+        [[NSWorkspace sharedWorkspace] openURLs:@[ url ]
                                            withAppBundleIdentifier:nil
                                            options:NSWorkspaceLaunchWithoutActivation
                                            additionalEventParamDescriptor:nil
@@ -6257,8 +6093,6 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
     }
 }
 
-// If iTerm2 is the handler for the scheme, then the bookmark is launched directly.
-// Otherwise it's passed to the OS to launch.
 - (void)findUrlInString:(NSString *)aURLString andOpenInBackground:(BOOL)background {
     DLog(@"findUrlInString:%@", aURLString);
     NSRange range = [aURLString rangeOfURLInString];
@@ -6274,15 +6108,7 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
     NSString* escapedString = [trimmedURLString stringByEscapingForURL];
 
     NSURL *url = [NSURL URLWithString:escapedString];
-    DLog(@"Escaped string is %@", url);
-    Profile *profile = [[iTermLaunchServices sharedInstance] profileForScheme:[url scheme]];
-
-    if (profile) {
-        [_delegate launchProfileInCurrentTerminal:profile withURL:trimmedURLString];
-    } else {
-        [self openURL:url inBackground:background];
-    }
-
+    [self openURL:url inBackground:background];
 }
 
 - (void)_dragImage:(iTermImageInfo *)imageInfo forEvent:(NSEvent *)theEvent
@@ -6550,6 +6376,7 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
     if (foundDirty) {
         [_dataSource saveToDvr];
         [_delegate textViewInvalidateRestorableState];
+        [_delegate textViewDidFindDirtyRects];
     }
 
     if (foundDirty && [_dataSource shouldSendContentsChangedNotification]) {
@@ -7228,6 +7055,10 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
     return [self selectedTextAttributed:NO
                            cappedAtSize:0
                       minimumLineNumber:[self accessibilityHelperLineNumberForAccessibilityLineNumber:0]];
+}
+
+- (NSURL *)accessibilityHelperCurrentDocumentURL {
+    return [_delegate textViewCurrentLocation];
 }
 
 - (screen_char_t *)accessibilityHelperLineAtIndex:(int)accessibilityIndex {

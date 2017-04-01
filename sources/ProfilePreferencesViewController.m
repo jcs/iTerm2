@@ -35,7 +35,7 @@
 
 - (void)safeMakeFirstResponder:(NSView *)view {
     if (view.window == self) {
-        [self makeFirstResponder:self];
+        [self makeFirstResponder:view];
     }
 }
 
@@ -403,7 +403,10 @@ NSString *const kProfileSessionHotkeyDidChange = @"kProfileSessionHotkeyDidChang
 
 - (void)resizeWindowForTabViewItem:(NSTabViewItem *)tabViewItem animated:(BOOL)animated {
     iTermSizeRememberingView *theView = (iTermSizeRememberingView *)[tabViewItem view];
+    [self resizeWindowForView:theView animated:animated];
+}
 
+- (void)resizeWindowForView:(iTermSizeRememberingView *)theView animated:(BOOL)animated {
     // The window's size includes all space around the tab view, plus the tab view.
     // These variables hold the space on each side of the tab view.
     CGFloat spaceAbove = 0;
@@ -570,11 +573,11 @@ NSString *const kProfileSessionHotkeyDidChange = @"kProfileSessionHotkeyDidChang
     bulkCopyController.keysForKeyboard = [_keysViewController keysForBulkCopy];
     bulkCopyController.keysForAdvanced = [_advancedViewController keysForBulkCopy];
 
-    [NSApp beginSheet:bulkCopyController.window
-       modalForWindow:self.view.window
-        modalDelegate:self
-       didEndSelector:@selector(bulkCopyControllerCloseSheet:returnCode:contextInfo:)
-          contextInfo:bulkCopyController];
+    [self.view.window beginSheet:bulkCopyController.window completionHandler:^(NSModalResponse returnCode) {
+        [bulkCopyController.window close];
+        [bulkCopyController autorelease];
+        [[_delegate profilePreferencesModel] flush];
+    }];
 }
 
 - (IBAction)duplicateProfile:(id)sender
@@ -648,11 +651,10 @@ NSString *const kProfileSessionHotkeyDidChange = @"kProfileSessionHotkeyDidChang
     [pasteboard writeObjects:@[ profiles ]];
 
     if (errors) {
-        [NSAlert alertWithMessageText:@"Error"
-                        defaultButton:@"Ok"
-                      alternateButton:nil
-                          otherButton:nil
-            informativeTextWithFormat:@"An error occurred. Check Console.app for details."];
+        NSAlert *alert = [[[NSAlert alloc] init] autorelease];
+        alert.messageText = @"Error";
+        alert.informativeText = @"An error occurred. Check Console.app for details.";
+        [alert runModal];
     }
 }
 
@@ -670,12 +672,11 @@ NSString *const kProfileSessionHotkeyDidChange = @"kProfileSessionHotkeyDidChang
         [pasteboard clearContents];
         [pasteboard writeObjects:@[ string ]];
     } else {
-        [NSAlert alertWithMessageText:@"Error"
-                        defaultButton:@"Ok"
-                      alternateButton:nil
-                          otherButton:nil
-            informativeTextWithFormat:@"Couldn't convert profile to JSON: %@",
-                                      [error localizedDescription]];
+        NSAlert *alert = [[[NSAlert alloc] init] autorelease];
+        alert.messageText = @"Error";
+        alert.informativeText = [NSString stringWithFormat:@"Couldn't convert profile to JSON: %@",
+                                 [error localizedDescription]];
+        [alert runModal];
     }
 }
 
@@ -695,16 +696,6 @@ NSString *const kProfileSessionHotkeyDidChange = @"kProfileSessionHotkeyDidChang
     }
 }
 
-#pragma mark - Sheet
-
-- (void)bulkCopyControllerCloseSheet:(NSWindow *)sheet
-                          returnCode:(int)returnCode
-                         contextInfo:(BulkCopyProfilePreferencesWindowController *)bulkCopyController {
-    [sheet close];
-    [bulkCopyController autorelease];
-    [[_delegate profilePreferencesModel] flush];
-}
-
 #pragma mark - iTermProfilesPreferencesBaseViewControllerDelegate
 
 - (Profile *)profilePreferencesCurrentProfile {
@@ -713,6 +704,12 @@ NSString *const kProfileSessionHotkeyDidChange = @"kProfileSessionHotkeyDidChang
 
 - (ProfileModel *)profilePreferencesCurrentModel {
     return [_delegate profilePreferencesModel];
+}
+
+- (void)profilePreferencesContentViewSizeDidChange:(iTermSizeRememberingView *)view {
+    if (_tabView.selectedTabViewItem.view == view ){
+        [self resizeWindowForView:view animated:YES];
+    }
 }
 
 
