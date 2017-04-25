@@ -12,6 +12,7 @@
 #import "iTermGrowlDelegate.h"
 #import "iTermImage.h"
 #import "iTermImageMark.h"
+#import "iTermURLMark.h"
 #import "iTermPreferences.h"
 #import "iTermSelection.h"
 #import "iTermShellHistoryController.h"
@@ -146,7 +147,6 @@ static const double kInterBellQuietPeriod = 0.1;
     BOOL _shellIntegrationInstalled;
 
     NSDictionary *inlineFileInfo_;  // Keys are kInlineFileXXX
-    VT100GridAbsCoord nextCommandOutputStart_;
     NSTimeInterval lastBell_;
     BOOL _cursorVisible;
     // Line numbers containing animated GIFs that need to be redrawn for the next frame.
@@ -214,7 +214,7 @@ static NSString *const kInilineFileInset = @"inset";  // NSValue of NSEdgeInsets
         markCache_ = [[NSMutableDictionary alloc] init];
         commandStartX_ = commandStartY_ = -1;
 
-        nextCommandOutputStart_ = VT100GridAbsCoordMake(-1, -1);
+        _startOfRunningCommandOutput = VT100GridAbsCoordMake(-1, -1);
         _lastCommandOutputRange = VT100GridAbsCoordRangeMake(-1, -1, -1, -1);
         _animatedLines = [[NSMutableIndexSet alloc] init];
     }
@@ -3523,6 +3523,24 @@ static NSString *const kInilineFileInset = @"inset";  // NSValue of NSEdgeInsets
     [delegate_ screenNeedsRedraw];
 }
 
+- (void)addURLMarkAtLineAfterCursorWithCode:(unsigned short)code {
+    long long absLine = (self.totalScrollbackOverflow +
+                         [self numberOfScrollbackLines] +
+                         currentGrid_.cursor.y + 1);
+    iTermURLMark *mark = [self addMarkStartingAtAbsoluteLine:absLine
+                                                     oneLine:YES
+                                                     ofClass:[iTermURLMark class]];
+    mark.code = code;
+}
+
+- (void)terminalWillStartLinkWithCode:(unsigned short)code {
+    [self addURLMarkAtLineAfterCursorWithCode:code];
+}
+
+- (void)terminalWillEndLinkWithCode:(unsigned short)code {
+    [self addURLMarkAtLineAfterCursorWithCode:code];
+}
+
 - (void)terminalDidFinishReceivingFile {
     if (inlineFileInfo_) {
         // TODO: Handle objects other than images.
@@ -3729,7 +3747,7 @@ static NSString *const kInilineFileInset = @"inset";  // NSValue of NSEdgeInsets
     _shellIntegrationInstalled = YES;
 
     _lastCommandOutputRange.end = coord;
-    _lastCommandOutputRange.start = nextCommandOutputStart_;
+    _lastCommandOutputRange.start = _startOfRunningCommandOutput;
 
     _currentPromptRange.start = coord;
     _currentPromptRange.end = coord;
@@ -3769,7 +3787,7 @@ static NSString *const kInilineFileInset = @"inset";  // NSValue of NSEdgeInsets
         [delegate_ screenCommandDidEndWithRange:[self commandRange]];
         commandStartX_ = commandStartY_ = -1;
         [delegate_ screenCommandDidChangeWithRange:[self commandRange]];
-        nextCommandOutputStart_ = coord;
+        _startOfRunningCommandOutput = coord;
         return YES;
     }
     return NO;
@@ -3898,7 +3916,7 @@ static NSString *const kInilineFileInset = @"inset";  // NSValue of NSEdgeInsets
     
     NSDictionary<NSString *, NSNumber *> *lastVersionByShell =
         @{ @"tcsh": @2,
-           @"bash": @4,
+           @"bash": @5,
            @"zsh": @5,
            @"fish": @5 };
     NSInteger latestKnownVersion = [lastVersionByShell[shell ?: @""] integerValue];
@@ -4759,7 +4777,7 @@ static void SwapInt(int *a, int *b) {
            kScreenStateSavedIntervalTreeKey: [savedIntervalTree_ dictionaryValueWithOffset:0] ?: [NSNull null],
            kScreenStateCommandStartXKey: @(commandStartX_),
            kScreenStateCommandStartYKey: @(commandStartY_),
-           kScreenStateNextCommandOutputStartKey: [NSDictionary dictionaryWithGridAbsCoord:nextCommandOutputStart_],
+           kScreenStateNextCommandOutputStartKey: [NSDictionary dictionaryWithGridAbsCoord:_startOfRunningCommandOutput],
            kScreenStateCursorVisibleKey: @(_cursorVisible),
            kScreenStateTrackCursorLineMovementKey: @(_trackCursorLineMovement),
            kScreenStateLastCommandOutputRangeKey: [NSDictionary dictionaryWithGridAbsCoordRange:_lastCommandOutputRange],
@@ -4807,7 +4825,7 @@ static void SwapInt(int *a, int *b) {
     if (includeRestorationBanner && [iTermAdvancedSettingsModel showSessionRestoredBanner]) {
         [lineBuffer appendMessage:@"Session Contents Restored"];
     }
-    [lineBuffer setMaxLines:maxScrollbackLines_];
+    [lineBuffer setMaxLines:maxScrollbackLines_ + self.height];
     if (!unlimitedScrollback_) {
         [lineBuffer dropExcessLinesWithWidth:self.width];
     }
@@ -4828,6 +4846,12 @@ static void SwapInt(int *a, int *b) {
     DLog(@"Restored %d wrapped lines from dictionary", [self numberOfScrollbackLines] + linesRestored);
     currentGrid_.cursorY = linesRestored + 1;
     currentGrid_.cursorX = 0;
+
+    // Reduce line buffer's max size to not include the grid height. This is its final state.
+    [lineBuffer setMaxLines:maxScrollbackLines_];
+    if (!unlimitedScrollback_) {
+        [lineBuffer dropExcessLinesWithWidth:self.width];
+    }
 
     if (screenState) {
         [tabStops_ removeAllObjects];
@@ -4864,7 +4888,7 @@ static void SwapInt(int *a, int *b) {
         [self reloadMarkCache];
         commandStartX_ = [screenState[kScreenStateCommandStartXKey] intValue];
         commandStartY_ = [screenState[kScreenStateCommandStartYKey] intValue];
-        nextCommandOutputStart_ = [screenState[kScreenStateNextCommandOutputStartKey] gridAbsCoord];
+        _startOfRunningCommandOutput = [screenState[kScreenStateNextCommandOutputStartKey] gridAbsCoord];
         _cursorVisible = [screenState[kScreenStateCursorVisibleKey] boolValue];
         _trackCursorLineMovement = [screenState[kScreenStateTrackCursorLineMovementKey] boolValue];
         _lastCommandOutputRange = [screenState[kScreenStateLastCommandOutputRangeKey] gridAbsCoordRange];

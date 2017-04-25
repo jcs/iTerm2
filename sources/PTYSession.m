@@ -184,6 +184,10 @@ static NSString *const kVariableKeySessionUsername = @"session.username";
 static NSString *const kVariableKeySessionPath = @"session.path";
 static NSString *const kVariableKeySessionLastCommand = @"session.lastCommand";
 static NSString *const kVariableKeySessionTTY = @"session.tty";
+static NSString *const kVariableKeyTermID = @"session.termid";
+static NSString *const kVariableKeySessionCreationTimeString = @"session.creationTimeString";
+static NSString *const kVariableKeySessionPID = @"iterm2.pid";
+static NSString *const kVariableKeySessionAutoLogID = @"session.autoLogId";
 
 // Maps Session GUID to saved contents. Only live between window restoration
 // and the end of startup activities.
@@ -457,6 +461,12 @@ static const NSUInteger kMaxHosts = 100;
 
     // Used by auto-hide. We can't auto hide the tmux gateway session until at least one window has been opened.
     BOOL _hideAfterTmuxWindowOpens;
+
+    BOOL _useAdaptiveFrameRate;
+    NSInteger _adaptiveFrameRateThroughputThreshold;
+    double _slowFrameRate;
+
+    uint32_t _autoLogId;
 }
 
 + (void)registerSessionInArrangement:(NSDictionary *)arrangement {
@@ -480,6 +490,10 @@ static const NSUInteger kMaxHosts = 100;
 - (instancetype)init {
     self = [super init];
     if (self) {
+        _autoLogId = arc4random();
+        _useAdaptiveFrameRate = [iTermAdvancedSettingsModel useAdaptiveFrameRate];
+        _adaptiveFrameRateThroughputThreshold = [iTermAdvancedSettingsModel adaptiveFrameRateThroughputThreshold];
+        _slowFrameRate = [iTermAdvancedSettingsModel slowFrameRate];
         _useGCDUpdateTimer = [iTermAdvancedSettingsModel useGCDUpdateTimer];
         _idleTime = [iTermAdvancedSettingsModel idleTimeSeconds];
         _triggerLineNumber = -1;
@@ -780,6 +794,19 @@ ITERM_WEAKLY_REFERENCEABLE
     } else {
         [_variables removeObjectForKey:kVariableKeySessionTTY];
     }
+
+    if (_variables[kVariableKeyTermID] == nil) {
+        // Variables that only need to be updated once.
+        _variables[kVariableKeyTermID] = [self.sessionId stringByReplacingOccurrencesOfString:@":" withString:@"."];
+
+        NSDateFormatter *dateFormatter = [[[NSDateFormatter alloc] init] autorelease];
+        dateFormatter.dateFormat = @"yyyyMMdd_HHmmss";
+        _variables[kVariableKeySessionCreationTimeString] = [dateFormatter stringFromDate:_creationDate];
+
+        _variables[kVariableKeySessionPID] = [@(getpid()) stringValue];
+        _variables[kVariableKeySessionAutoLogID] = [@(_autoLogId) stringValue];
+    }
+
     [_textview setBadgeLabel:[self badgeLabel]];
 }
 
@@ -1096,7 +1123,7 @@ ITERM_WEAKLY_REFERENCEABLE
             [aSession setWindowTitle:title];
         }
         if ([aSession.profile[KEY_AUTOLOG] boolValue]) {
-            [aSession.shell startLoggingToFileWithPath:[aSession _autoLogFilenameForTermId:[aSession.sessionId stringByReplacingOccurrencesOfString:@":" withString:@"."]]
+            [aSession.shell startLoggingToFileWithPath:[aSession autoLogFilename]
                                           shouldAppend:NO];
         }
     }
@@ -1506,17 +1533,15 @@ ITERM_WEAKLY_REFERENCEABLE
     return [iTermPromptOnCloseReason profileAlwaysPrompts:_profile];
 }
 
-- (NSString *)_autoLogFilenameForTermId:(NSString *)termid {
-    // $(LOGDIR)/YYYYMMDD_HHMMSS.$(NAME).wNtNpN.$(PID).$(RANDOM).log
+- (NSString *)autoLogFilename {
     NSDateFormatter *dateFormatter = [[[NSDateFormatter alloc] init] autorelease];
     dateFormatter.dateFormat = @"yyyyMMdd_HHmmss";
-    return [NSString stringWithFormat:@"%@/%@.%@.%@.%d.%0x.log",
-            [_profile objectForKey:KEY_LOGDIR],
-            [dateFormatter stringFromDate:[NSDate date]],
-            [_profile objectForKey:KEY_NAME],
-            termid,
-            (int)getpid(),
-            (int)arc4random()];
+    NSString *format = [iTermAdvancedSettingsModel autoLogFormat];
+    [self updateVariables];
+    NSString *name = [[format stringByReplacingVariableReferencesWithVariables:self.variables] stringByReplacingOccurrencesOfString:@"/" withString:@"__"];
+    NSString *filename = [[iTermProfilePreferences stringForKey:KEY_LOGDIR inProfile:_profile] stringByAppendingPathComponent:name];
+    DLog(@"Using autolog filename %@ from format %@ and variables %@", filename, format, self.variables);
+    return filename;
 }
 
 - (BOOL)shouldSetCtype {
@@ -1595,7 +1620,7 @@ ITERM_WEAKLY_REFERENCEABLE
         env[@"ITERM_PROFILE"] = [_profile[KEY_NAME] stringByPerformingSubstitutions:substitutions];
     }
     if ([_profile[KEY_AUTOLOG] boolValue]) {
-        [_shell startLoggingToFileWithPath:[self _autoLogFilenameForTermId:[itermId stringByReplacingOccurrencesOfString:@":" withString:@"."]]
+        [_shell startLoggingToFileWithPath:[self autoLogFilename]
                               shouldAppend:NO];
     }
     @synchronized(self) {
@@ -2084,7 +2109,7 @@ ITERM_WEAKLY_REFERENCEABLE
     [self retain];
     dispatch_retain(_executionSemaphore);
     dispatch_async(dispatch_get_main_queue(), ^{
-        if ([iTermAdvancedSettingsModel useAdaptiveFrameRate]) {
+        if (_useAdaptiveFrameRate) {
             [_throughputEstimator addByteCount:length];
         }
         [self executeTokens:&vector bytesHandled:length];
@@ -3940,14 +3965,13 @@ ITERM_WEAKLY_REFERENCEABLE
 - (void)changeCadenceIfNeeded {
     BOOL effectivelyActive = (_active || !self.isIdle || [NSApp isActive]);
     if (effectivelyActive && [_delegate sessionBelongsToVisibleTab]) {
-        if ([iTermAdvancedSettingsModel useAdaptiveFrameRate]) {
-            const NSInteger kThroughputLimit =
-                [iTermAdvancedSettingsModel adaptiveFrameRateThroughputThreshold];
+        if (_useAdaptiveFrameRate) {
+            const NSInteger kThroughputLimit = _adaptiveFrameRateThroughputThreshold;
             const NSInteger estimatedThroughput = [_throughputEstimator estimatedThroughput];
             if (estimatedThroughput < kThroughputLimit && estimatedThroughput > 0) {
                 [self setUpdateCadence:kFastUpdateCadence];
             } else {
-                [self setUpdateCadence:1.0 / [iTermAdvancedSettingsModel slowFrameRate]];
+                [self setUpdateCadence:1.0 / _slowFrameRate];
             }
         } else {
             [self setUpdateCadence:kActiveUpdateCadence];
@@ -6448,11 +6472,26 @@ ITERM_WEAKLY_REFERENCEABLE
         [iTermShellHistoryController showInformationalMessage];
         return VT100GridAbsCoordRangeMake(-1, -1, -1, -1);
     } else {
-        DLog(@"Returning cached range.");
         iTermTextExtractor *extractor = [iTermTextExtractor textExtractorWithDataSource:_screen];
-        return [extractor rangeByTrimmingWhitespaceFromRange:_screen.lastCommandOutputRange
-                                                     leading:NO
-                                                    trailing:iTermTextExtractorTrimTrailingWhitespaceOneLine];
+        long long absCursorY = _screen.cursorY - 1 + _screen.numberOfScrollbackLines + _screen.totalScrollbackOverflow;
+
+        if (self.isAtShellPrompt ||
+            _screen.startOfRunningCommandOutput.x == -1 ||
+            (absCursorY == _screen.startOfRunningCommandOutput.y && _screen.cursorX == 1)) {
+            DLog(@"Returning cached range.");
+            return [extractor rangeByTrimmingWhitespaceFromRange:_screen.lastCommandOutputRange
+                                                         leading:NO
+                                                        trailing:iTermTextExtractorTrimTrailingWhitespaceOneLine];
+        } else {
+            DLog(@"Returning range of current command.");
+            VT100GridAbsCoordRange range = VT100GridAbsCoordRangeMake(_screen.startOfRunningCommandOutput.x,
+                                                                      _screen.startOfRunningCommandOutput.y,
+                                                                      _screen.cursorX - 1,
+                                                                      absCursorY);
+            return [extractor rangeByTrimmingWhitespaceFromRange:range
+                                                         leading:NO
+                                                        trailing:iTermTextExtractorTrimTrailingWhitespaceOneLine];
+        }
     }
 }
 
@@ -8198,7 +8237,7 @@ ITERM_WEAKLY_REFERENCEABLE
 }
 
 - (NSString *)currentLocalWorkingDirectory {
-    if (_lastDirectoryIsRemote) {
+    if (_lastDirectoryIsRemote || _lastDirectory == nil) {
         // Ask the kernel what the child's process's working directory is.
         return [_shell getWorkingDirectory];
     } else {
