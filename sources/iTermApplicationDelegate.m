@@ -282,9 +282,6 @@ static const NSTimeInterval kOneMonth = 30 * 24 * 60 * 60;
         // Start tiling window manager
         [iTermTilingManager sharedInstance];
 
-        // Users used to be opted into the beta by default. Make sure the user is cool with that.
-        [self promptAboutRemainingInBetaIfNeeded];
-
         launchTime_ = [[NSDate date] retain];
         _workspaceSessionActive = YES;
     }

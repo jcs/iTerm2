@@ -186,7 +186,6 @@
             [currentTerminal.currentTab setActiveSession:[orderedSessions lastObject]];
             return YES;
         }
-
         if (digit >= 1 && digit <= numSessions) {
             // Modifier+number: Switch to split pane by number.
             DLog(@"Switching to split pane");
@@ -248,7 +247,6 @@
     }
     return NO;
 }
->>>>>>> upstream/master
 
 - (BOOL)remapEvent:(NSEvent *)event inResponder:(NSResponder *)responder currentSession:(PTYSession *)currentSession {
     BOOL okToRemap = YES;
