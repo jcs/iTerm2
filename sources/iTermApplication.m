@@ -157,7 +157,7 @@
         // Command-Alt (or selected modifier) + number: Switch to window by number.
         int digit = [self digitKeyForEvent:event];
         if (digit >= 1 && digit <= 9) {
-            PseudoTerminal* termWithNumber = [[iTermController sharedInstance] terminalWithNumber:(digit - 1)];
+            PseudoTerminal *termWithNumber = [[iTermController sharedInstance] terminalWithNumber:(digit - 1)];
             DLog(@"Switching windows");
             if (termWithNumber) {
                 if ([termWithNumber isHotKeyWindow] && [[termWithNumber window] alphaValue] < 1) {
@@ -202,7 +202,7 @@
                 digit = [[event characters] intValue];
             }
             if (digit >= 1 && digit <= 9) {
-                PseudoTerminal* termWithNumber = [cont terminalWithNumber:(digit - 1)];
+                PseudoTerminal *termWithNumber = [[iTermController sharedInstance] terminalWithNumber:(digit - 1)];
                 DLog(@"Switching windows");
                 if (termWithNumber) {
                     if ([termWithNumber isHotKeyWindow] && [[termWithNumber window] alphaValue] < 1) {
@@ -213,7 +213,7 @@
                         [[termWithNumber window] makeKeyAndOrderFront:self];
                     }
                 }
-                return;
+                return YES;
             }
         }
 
@@ -221,7 +221,7 @@
         if ([iTermKeyBindingMgr inActionMode] && ![iTermKeyBindingMgr actionModeShouldIgnoreNextCommand]) {
             if ([iTermKeyBindingMgr actionForKeyCode:([[event charactersIgnoringModifiers] length] > 0 ? [[event charactersIgnoringModifiers] characterAtIndex:0] : 0) modifiers:[event modifierFlags] text:nil keyMappings:[iTermKeyBindingMgr globalKeyMap]] == -1) {
                 [iTermKeyBindingMgr setInActionMode:NO];
-                return;
+                return YES;
             }
         }
     }

@@ -7,14 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		013A29111F6860E6006D1617 /* iTermTilingFrame.m in Sources */ = {isa = PBXBuildFile; fileRef = 01E994681DF20AF500FF4C23 /* iTermTilingFrame.m */; };
+		013A29121F6860E6006D1617 /* iTermTilingManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 01E994641DF12C0600FF4C23 /* iTermTilingManager.m */; };
+		013A29131F6860E6006D1617 /* iTermTilingToast.m in Sources */ = {isa = PBXBuildFile; fileRef = 0183A1151DF4747300F22B00 /* iTermTilingToast.m */; };
+		013A29141F6860E6006D1617 /* iTermTilingWindow.m in Sources */ = {isa = PBXBuildFile; fileRef = 01E9946C1DF20B6E00FF4C23 /* iTermTilingWindow.m */; };
 		0183A1161DF4747300F22B00 /* iTermTilingToast.h in Headers */ = {isa = PBXBuildFile; fileRef = 0183A1141DF4747300F22B00 /* iTermTilingToast.h */; };
-		0183A1171DF4747300F22B00 /* iTermTilingToast.m in Sources */ = {isa = PBXBuildFile; fileRef = 0183A1151DF4747300F22B00 /* iTermTilingToast.m */; };
 		01E994651DF12C0600FF4C23 /* iTermTilingManager.h in Headers */ = {isa = PBXBuildFile; fileRef = 01E994631DF12C0600FF4C23 /* iTermTilingManager.h */; };
-		01E994661DF12C0600FF4C23 /* iTermTilingManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 01E994641DF12C0600FF4C23 /* iTermTilingManager.m */; };
 		01E994691DF20AF500FF4C23 /* iTermTilingFrame.h in Headers */ = {isa = PBXBuildFile; fileRef = 01E994671DF20AF500FF4C23 /* iTermTilingFrame.h */; };
-		01E9946A1DF20AF500FF4C23 /* iTermTilingFrame.m in Sources */ = {isa = PBXBuildFile; fileRef = 01E994681DF20AF500FF4C23 /* iTermTilingFrame.m */; };
 		01E9946D1DF20B6E00FF4C23 /* iTermTilingWindow.h in Headers */ = {isa = PBXBuildFile; fileRef = 01E9946B1DF20B6E00FF4C23 /* iTermTilingWindow.h */; };
-		01E9946E1DF20B6E00FF4C23 /* iTermTilingWindow.m in Sources */ = {isa = PBXBuildFile; fileRef = 01E9946C1DF20B6E00FF4C23 /* iTermTilingWindow.m */; };
 		06E0C88E1DF9695400AA061B /* iTermServiceProvider.h in Headers */ = {isa = PBXBuildFile; fileRef = 06E0C88C1DF9695400AA061B /* iTermServiceProvider.h */; };
 		1D027C111CD1867000B0FBFF /* iTermColorPresets.h in Headers */ = {isa = PBXBuildFile; fileRef = 1D027C0F1CD1867000B0FBFF /* iTermColorPresets.h */; };
 		1D027C121CD1867100B0FBFF /* iTermColorPresets.m in Sources */ = {isa = PBXBuildFile; fileRef = 1D027C101CD1867000B0FBFF /* iTermColorPresets.m */; };
@@ -6536,7 +6536,6 @@
 				A67F57D41B11882900B4F135 /* CapturedOutput.h in Headers */,
 				A693395C1851A61D00EBEA20 /* VT100ScreenMark.h in Headers */,
 				1D5FDD5D1208E8F000C46BA3 /* PSMRolloverButton.h in Headers */,
-				0183A1161DF4747300F22B00 /* iTermTilingToast.h in Headers */,
 				1D5FDD5E1208E8F000C46BA3 /* PSMTabBarCell.h in Headers */,
 				A6A2698818FF70C600437DA9 /* ProfilesWindowPreferencesViewController.h in Headers */,
 				A6E525DD1A9C5730007B898E /* VT100StateMachine.h in Headers */,
@@ -6755,7 +6754,6 @@
 				1DB40AB51B27B577005B83C7 /* PTYTabDelegate.h in Headers */,
 				1DB67CF11485C578005849A1 /* TmuxHistoryParser.h in Headers */,
 				1DB67CF51486BD3D005849A1 /* TmuxStateParser.h in Headers */,
-				01E994651DF12C0600FF4C23 /* iTermTilingManager.h in Headers */,
 				1DC38818148E840700B89F7C /* SolidColorView.h in Headers */,
 				1D7B9A691491D82F003A2A22 /* IntervalMap.h in Headers */,
 				1D8CDF521958F31700FE1BEE /* iTermSizeRememberingView.h in Headers */,
@@ -6802,7 +6800,6 @@
 				A61ABBC21AE5F54A004656C2 /* NSMutableDictionary+Profile.h in Headers */,
 				A6A13AB118C33ED300B241ED /* VT100CSIParser.h in Headers */,
 				1D407A4414BABE8700BD5035 /* VT100Screen.h in Headers */,
-				01E9946D1DF20B6E00FF4C23 /* iTermTilingWindow.h in Headers */,
 				A60BD9131B3913F6007D7F11 /* iTermTextViewAccessibilityHelper.h in Headers */,
 				1DB83952192E95EB0037E548 /* CaptureTrigger.h in Headers */,
 				1D8BBA911B33529E0005A852 /* iTermTip.h in Headers */,
@@ -6827,7 +6824,6 @@
 				A6E7139418F50762008D94DD /* ProfilePreferencesViewController.h in Headers */,
 				A69B45AE19731D3200F5444D /* iTermOpenQuicklyModel.h in Headers */,
 				A663012A19D0864C004AF81C /* SCEvent.h in Headers */,
-				01E994691DF20AF500FF4C23 /* iTermTilingFrame.h in Headers */,
 				1DA26AC015007507004B5792 /* BackgroundThread.h in Headers */,
 				1D2F3B3D1516BA470044C337 /* iTermFontPanel.h in Headers */,
 				A6057C09187A1809004A60AF /* TerminalFile.h in Headers */,
@@ -6848,6 +6844,10 @@
 				1D9053C617A5CCF100A0B64E /* MovingAverage.h in Headers */,
 				FB4CEC973C7E9235362E3F26 /* iTermRemotePreferences.h in Headers */,
 				A663013119D0864C004AF81C /* SCEvents.h in Headers */,
+				01E994691DF20AF500FF4C23 /* iTermTilingFrame.h in Headers */,
+				01E994651DF12C0600FF4C23 /* iTermTilingManager.h in Headers */,
+				0183A1161DF4747300F22B00 /* iTermTilingToast.h in Headers */,
+				01E9946D1DF20B6E00FF4C23 /* iTermTilingWindow.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -8456,10 +8456,6 @@
 				A68AC8F41F05C0860023A216 /* NSBundle+iTerm.m in Sources */,
 				A66719631DCE3772000CE608 /* iTermSocketIPV4Address.m in Sources */,
 				A66719611DCE3772000CE608 /* iTermIPV4Address.m in Sources */,
-				01E994661DF12C0600FF4C23 /* iTermTilingManager.m in Sources */,
-				0183A1171DF4747300F22B00 /* iTermTilingToast.m in Sources */,
-				01E9946A1DF20AF500FF4C23 /* iTermTilingFrame.m in Sources */,
-				01E9946E1DF20B6E00FF4C23 /* iTermTilingWindow.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -8889,6 +8885,10 @@
 				A6FEA2711CF2C8EE00376F28 /* iTermProfileHotKey.m in Sources */,
 				A6C762B51B45C52B00E3C992 /* NSEvent+iTerm.m in Sources */,
 				A6C763E61B45C70100E3C992 /* SCEvents.m in Sources */,
+				013A29111F6860E6006D1617 /* iTermTilingFrame.m in Sources */,
+				013A29121F6860E6006D1617 /* iTermTilingManager.m in Sources */,
+				013A29131F6860E6006D1617 /* iTermTilingToast.m in Sources */,
+				013A29141F6860E6006D1617 /* iTermTilingWindow.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

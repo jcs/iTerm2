@@ -23,7 +23,7 @@ typedef NS_ENUM(NSInteger, iTermTilingFrameDirection) {
 
 @interface iTermTilingManager : NSObject
 
-@property (assign) NSMutableArray<iTermTilingFrame *> *frames;
+@property (retain) NSMutableArray<iTermTilingFrame *> *frames;
 @property (retain) NSMutableArray<iTermTilingWindow *> *windows;
 @property (assign) NSColor *activeFrameBorderColor;
 @property (assign) NSColor *inactiveFrameBorderColor;
