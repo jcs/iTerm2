@@ -16,6 +16,8 @@
 @class TmuxController;
 @class SolidColorView;
 
+extern NSString *const iTermTabDidChangeWindowNotification;
+
 // This implements NSSplitViewDelegate but it was an informal protocol in 10.5. If 10.5 support
 // is eventually dropped, change this to make it official.
 @interface PTYTab : NSObject <
@@ -65,8 +67,6 @@
 // activities, their contents can be rescued.
 + (void)registerSessionsInArrangement:(NSDictionary *)arrangement;
 
-+ (NSDictionary *)tmuxBookmark;
-
 + (void)drawArrangementPreview:(NSDictionary*)arrangement frame:(NSRect)frame;
 
 + (PTYTab *)openTabWithArrangement:(NSDictionary*)arrangement
@@ -79,7 +79,8 @@
                     inTerminal:(NSWindowController<iTermWindowController> *)term
                hasFlexibleView:(BOOL)hasFlexible
                        viewMap:(NSDictionary<NSNumber *, SessionView *> *)viewMap
-                    sessionMap:(NSDictionary<NSString *, PTYSession *> *)sessionMap;
+                    sessionMap:(NSDictionary<NSString *, PTYSession *> *)sessionMap
+                tmuxController:(TmuxController *)tmuxController;
 
 + (NSDictionary<NSString *, PTYSession *> *)sessionMapWithArrangement:(NSDictionary *)arrangement
                                                              sessions:(NSArray *)sessions;
@@ -88,11 +89,6 @@
                        inTerminal:(NSWindowController<iTermWindowController> *)term
                        tmuxWindow:(int)tmuxWindow
                    tmuxController:(TmuxController *)tmuxController;
-
-+ (void)setTmuxFont:(NSFont *)font
-       nonAsciiFont:(NSFont *)nonAsciiFont
-           hSpacing:(double)hs
-           vSpacing:(double)vs;
 
 + (NSDictionary *)repairedArrangement:(NSDictionary *)arrangement
              replacingProfileWithGUID:(NSString *)badGuid
@@ -187,6 +183,11 @@
 - (BOOL)layoutIsTooLarge;
 - (TmuxController *)tmuxController;
 
+- (void)setTmuxFont:(NSFont *)font
+       nonAsciiFont:(NSFont *)nonAsciiFont
+           hSpacing:(double)hs
+           vSpacing:(double)vs;
+
 - (void)moveCurrentSessionDividerBy:(int)direction horizontally:(BOOL)horizontally;
 - (BOOL)canMoveCurrentSessionDividerBy:(int)direction horizontally:(BOOL)horizontally;
 
@@ -207,5 +208,5 @@
 - (void)updateIcon;
 
 - (void)checkInvariants:(NSString *)when;
-
+- (void)setTmuxWindowName:(NSString *)tmuxWindowName;
 @end

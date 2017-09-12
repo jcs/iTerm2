@@ -10,6 +10,7 @@
 #import "iTermPromptOnCloseReason.h"
 #import "iTermProfilePreferences.h"
 #import "MovePaneController.h"
+#import "NSArray+iTerm.h"
 #import "NSColor+iTerm.h"
 #import "NSFont+iTerm.h"
 #import "NSView+iTerm.h"
@@ -29,6 +30,8 @@
 #import "WindowControllerInterface.h"
 
 #define PtyLog DLog
+
+NSString *const iTermTabDidChangeWindowNotification = @"iTermTabDidChangeWindowNotification";
 
 // No growl output/idle alerts for a few seconds after a window is resized because there will be bogus bg activity
 const int POST_WINDOW_RESIZE_SILENCE_SEC = 5;
@@ -383,6 +386,14 @@ static void SetAgainstGrainDim(BOOL isVertical, NSSize *dest, CGFloat value) {
     [super dealloc];
 }
 
+- (NSString *)description {
+    return [NSString stringWithFormat:@"<%@: %p label=%@ objectCount=%@>",
+            NSStringFromClass([self class]),
+            self,
+            tabViewItem_.label,
+            @(objectCount_)];
+}
+
 #pragma mark - NSCopying
 
 - (id)copyWithZone:(NSZone *)zone {
@@ -391,7 +402,8 @@ static void SetAgainstGrainDim(BOOL isVertical, NSSize *dest, CGFloat value) {
                                       inTerminal:[self realParentWindow]
                                  hasFlexibleView:flexibleView_ != nil
                                          viewMap:nil
-                                      sessionMap:nil];
+                                      sessionMap:nil
+                                  tmuxController:tmuxController_];
     return [theCopy retain];
 }
 
@@ -524,13 +536,8 @@ static void SetAgainstGrainDim(BOOL isVertical, NSSize *dest, CGFloat value) {
     return [[tabViewItem_ tabView] selectedTabViewItem] == tabViewItem_;
 }
 
-- (void)sessionWithTmuxGateway:(PTYSession *)session
-       wasNotifiedWindowWithId:(int)windowId
-                     renamedTo:(NSString *)newName {
-    PTYTab *tab = [session.tmuxController window:windowId];
-    if (tab) {
-        [tab setTmuxWindowName:newName];
-    }
+- (void)sessionDidChangeTmuxWindowNameTo:(NSString *)newName {
+    [self setTmuxWindowName:newName];
 }
 
 - (void)sessionSelectContainingTab {
@@ -742,7 +749,7 @@ static void SetAgainstGrainDim(BOOL isVertical, NSSize *dest, CGFloat value) {
     if (!flexibleView_) {
         return;
     }
-    NSSize cellSize = [PTYTab cellSizeForBookmark:[PTYTab tmuxBookmark]];
+    NSSize cellSize = [PTYTab cellSizeForBookmark:self.tmuxController.profile];
     if (![realParentWindow_ anyFullScreen] &&
         flexibleView_.frame.size.width > root_.frame.size.width &&
         flexibleView_.frame.size.width - root_.frame.size.width < cellSize.width &&
@@ -751,8 +758,7 @@ static void SetAgainstGrainDim(BOOL isVertical, NSSize *dest, CGFloat value) {
         // Root is just slightly smaller than flexibleView, by less than the size of a character.
         // Set flexible view's color to the default background color for tmux tabs.
         NSColor *bgColor;
-        Profile *bm = [PTYTab tmuxBookmark];
-        bgColor = [ITAddressBookMgr decodeColor:[bm objectForKey:KEY_BACKGROUND_COLOR]];
+        bgColor = [ITAddressBookMgr decodeColor:self.tmuxController.profile[KEY_BACKGROUND_COLOR]];
         [flexibleView_ setColor:bgColor];
     } else {
         // Fullscreen, overly large flexible view, or exact size flex view.
@@ -762,6 +768,9 @@ static void SetAgainstGrainDim(BOOL isVertical, NSSize *dest, CGFloat value) {
 
 - (void)setParentWindow:(NSWindowController<iTermWindowController> *)theParent {
     // Parent holds a reference to us (indirectly) so we mustn't reference it.
+    if (parentWindow_ && theParent && parentWindow_ != theParent) {
+        [[NSNotificationCenter defaultCenter] postNotificationName:iTermTabDidChangeWindowNotification object:self];
+    }
     parentWindow_ = realParentWindow_ = theParent;
     [self updateFlexibleViewColors];
     for (PTYSession *session in self.sessions) {
@@ -863,124 +872,160 @@ static void SetAgainstGrainDim(BOOL isVertical, NSSize *dest, CGFloat value) {
     return result;
 }
 
-- (PTYSession *)_sessionAdjacentTo:(PTYSession *)session
-                       verticalDir:(BOOL)verticalDir
-                             after:(BOOL)after {
-    NSRect myRect = [root_ convertRect:[[session view] frame] fromView:[[session view] superview]];
-    PtyLog(@"origin is %@", NSStringFromRect(myRect));
-    NSPoint targetPoint = myRect.origin;
-    NSSize rootSize = [root_ frame].size;
+// The following adjacency code works on this thesis:
+//
+// B is adjacent-right-of A if:
+//   B != A, AND
+//   B.bottom >= A.top, AND
+//   B.top < A.bottom, AND
+//   B.left >= A.right, AND
+//   No C exists where:
+//     C != A, AND
+//     C != B, AND
+//     C.bottom >= A.top, AND
+//     C.top < A.bottom, AND
+//     C.bottom >= B.top, AND
+//     C.top < B.bottom, AND
+//     C.left >= A.right, AND
+//     C.right < B.left, AND
+//
+// To select adjacent-right-of instead of adjacent-left-of, multiply use -1*right where it says left and -1*left where it says right.
+// To select adjacent-below instead of adjacent-right-of, swap all axes.
+// To select adjacent-above instead of adjacent-right-of, first swap all axes and then use -right and -left in place of left and right.
+//
+// As an example:
+//
+// +-------+------+----+
+// |       |   X1 |    |
+// |   A   +------+ x3 |
+// |       |   X2 |    |
+// +-------+------+----+
+// |           D       |
+// +-------------------+
+//
+// X1, X2, and X3 all sit "in the projection" of A, looking right.
+// D does not and can be ignored.
+//
+// For each B in {X1, X2, X3} we check if any C sits between A and B.
+// X1 sits between A and X3, so X3 is not adjacent-right-of A.
+// X1 and X2 have no such C, so they are adjacent-right-of A.
+// We did not consider D since it isn't in the projection.
 
-    // Rearrange coordinates so that the rest of this function can be written to find the session
-    // to the right or left (depending on 'after') of this one.
+- (NSArray<PTYSession *> *)sessionsSatisfying:(BOOL (^)(PTYSession *otherSession))condition {
+    return [self.sessions filteredArrayUsingBlock:^BOOL(PTYSession *anObject) {
+        return condition(anObject);
+    }];
+}
+
+- (NSArray<PTYSession *> *)sessionsInProjectionOfSession:(PTYSession *)aSession
+                                       verticalDirection:(BOOL)verticalDirection
+                                                   after:(BOOL)after {
+    NSRect aRect = [root_ convertRect:aSession.view.frame fromView:aSession.view.superview];
+    if (verticalDirection) {
+        SwapSize(&aRect.size);
+        SwapPoint(&aRect.origin);
+    }
+
+    const CGFloat aTop = NSMinY(aRect);
+    const CGFloat aBottom = NSMaxY(aRect);
+
+    return [self sessionsSatisfying:^BOOL(PTYSession *b) {
+        if (b == aSession) {
+            return NO;
+        }
+        NSRect bRect = [root_ convertRect:b.view.frame fromView:b.view.superview];
+        if (verticalDirection) {
+            SwapSize(&bRect.size);
+            SwapPoint(&bRect.origin);
+        }
+
+        const CGFloat bTop = NSMinY(bRect);
+        const CGFloat bBottom = NSMaxY(bRect);
+
+        const CGFloat bLeft = after ? NSMinX(bRect) : -NSMaxX(bRect);
+        const CGFloat aRight = after ? NSMaxX(aRect) : -NSMinX(aRect);
+
+        return (bBottom >= aTop &&
+                bTop < aBottom &&
+                bLeft >= aRight);
+    }];
+}
+
+- (NSArray<PTYSession *> *)sessionsAdjacentToSession:(PTYSession *)aSession
+                                         verticalDir:(BOOL)verticalDir
+                                               after:(BOOL)after {
+    NSArray<PTYSession *> *bCandidates = [self sessionsInProjectionOfSession:aSession verticalDirection:verticalDir after:after];
+    return [bCandidates filteredArrayUsingBlock:^BOOL(PTYSession *b) {
+        BOOL cExists = [bCandidates anyWithBlock:^BOOL(PTYSession *cCandidate) {
+            return [self session:cCandidate sitsBetween:aSession and:b verticalDir:verticalDir after:after];
+        }];
+        return !cExists;
+    }];
+}
+
+- (BOOL)session:(PTYSession *)c sitsBetween:(PTYSession *)a and:(PTYSession *)b verticalDir:(BOOL)verticalDir after:(BOOL)after {
+    if (c == a || c == b) {
+        return NO;
+    }
+    NSRect aRect = [root_ convertRect:a.view.frame fromView:a.view.superview];
+    NSRect bRect = [root_ convertRect:b.view.frame fromView:b.view.superview];
+    NSRect cRect = [root_ convertRect:c.view.frame fromView:c.view.superview];
+
     if (verticalDir) {
-        SwapSize(&myRect.size);
-        SwapPoint(&myRect.origin);
-        SwapPoint(&targetPoint);
-        SwapSize(&rootSize);
+        SwapSize(&aRect.size);
+        SwapPoint(&aRect.origin);
+
+        SwapSize(&bRect.size);
+        SwapPoint(&bRect.origin);
+
+        SwapSize(&cRect.size);
+        SwapPoint(&cRect.origin);
     }
 
-    int sign = after ? 1 : -1;
-    if (after) {
-        targetPoint.x += myRect.size.width;
-    }
-    targetPoint.x += sign * ([root_ dividerThickness] + 1);
-    const CGFloat maxAllowed = after ? rootSize.width : 0;
-    if (sign * targetPoint.x > maxAllowed) {
-        targetPoint.x -= sign * rootSize.width;
-    }
-    CGFloat offset = 0;
-    CGFloat defaultOffset = myRect.size.height / 2;
-    NSPoint origPoint = targetPoint;
-    PtyLog(@"OrigPoint is %lf,%lf", origPoint.x, origPoint.y);
-    PTYSession* bestResult = nil;
-    PTYSession* defaultResult = nil;
-    NSNumber *maxActivityCounter = nil;
-    // Iterate over every possible adjacent session and select the most recently active one.
-    while (offset < myRect.size.height) {
-        targetPoint = origPoint;
-        targetPoint.y += offset;
-        PTYSession* result;
+    const CGFloat aTop = NSMinY(aRect);
+    const CGFloat aBottom = NSMaxY(aRect);
+    const CGFloat aRight = after ? NSMaxX(aRect) : -NSMinX(aRect);
 
-        // First, get the session at the target point.
-        if (verticalDir) {
-            SwapPoint(&targetPoint);
-        }
-        PtyLog(@"Check session at %lf,%lf", targetPoint.x, targetPoint.y);
-        result = [self _recursiveSessionAtPoint:targetPoint relativeTo:root_];
-        if (verticalDir) {
-            SwapPoint(&targetPoint);
-        }
-        if (!result) {
-            // Oops, targetPoint must have landed right on a divider. Advance by
-            // one divider's width.
-            targetPoint.y += [root_ dividerThickness];
-            if (verticalDir) {
-                SwapPoint(&targetPoint);
-            }
-            result = [self _recursiveSessionAtPoint:targetPoint relativeTo:root_];
-            if (verticalDir) {
-                SwapPoint(&targetPoint);
-            }
-            targetPoint.y -= [root_ dividerThickness];
-        }
-        if (!result) {
-            // Maybe we fell off the end of the window? Try going the other direction.
-            targetPoint.y -= [root_ dividerThickness];
-            if (verticalDir) {
-                SwapPoint(&targetPoint);
-            }
-            result = [self _recursiveSessionAtPoint:targetPoint relativeTo:root_];
-            if (verticalDir) {
-                SwapPoint(&targetPoint);
-            }
-            targetPoint.y += [root_ dividerThickness];
-        }
+    const CGFloat bTop = NSMinY(bRect);
+    const CGFloat bBottom = NSMaxY(bRect);
+    const CGFloat bLeft = after ? NSMinX(bRect) : -NSMaxX(bRect);
 
-        // Advance offset to next sibling's origin.
-        NSRect rootRelativeResultRect = [root_ convertRect:[[result view] frame]
-                                                  fromView:[[result view] superview]];
-        PtyLog(@"Result is at %@", NSStringFromRect(rootRelativeResultRect));
-        if (verticalDir) {
-            SwapPoint(&rootRelativeResultRect.origin);
-            SwapSize(&rootRelativeResultRect.size);
-        }
-        offset = rootRelativeResultRect.origin.y - origPoint.y + rootRelativeResultRect.size.height;
-        PtyLog(@"set offset to %f", (float)offset);
-        if (verticalDir) {
-            SwapPoint(&rootRelativeResultRect.origin);
-            SwapSize(&rootRelativeResultRect.size);
-        }
+    const CGFloat cTop = NSMinY(cRect);
+    const CGFloat cBottom = NSMaxY(cRect);
+    const CGFloat cLeft = after ? NSMinX(cRect) : -NSMaxX(cRect);
+    const CGFloat cRight = after ? NSMaxX(cRect) : -NSMinX(cRect);
 
-        if ((!maxActivityCounter && [result activityCounter]) ||
-            (maxActivityCounter && [[result activityCounter] isGreaterThan:maxActivityCounter])) {
-            // Found a more recently used session.
-            bestResult = result;
-            maxActivityCounter = [result activityCounter];
-        }
-        if (!bestResult && offset > defaultOffset) {
-            // Haven't found a used session yet but this one is centered so we might pick it.
-            defaultResult = result;
-        }
-    }
+    return (cBottom >= aTop &&
+            cTop < aBottom &&
+            cBottom >= bTop &&
+            cTop < bBottom &&
+            cLeft >= aRight &&
+            cRight < bLeft);
+}
 
-    return bestResult ? bestResult : defaultResult;
+- (PTYSession *)sessionAdjacentTo:(PTYSession *)session
+                      verticalDir:(BOOL)verticalDir
+                            after:(BOOL)after {
+    NSArray<PTYSession *> *sessions = [self sessionsAdjacentToSession:session verticalDir:verticalDir after:after];
+    return [sessions maxWithComparator:^NSComparisonResult(PTYSession *a, PTYSession *b) {
+        return [a.activityCounter compare:b.activityCounter];
+    }];
 }
 
 - (PTYSession*)sessionLeftOf:(PTYSession*)session {
-    return [self _sessionAdjacentTo:session verticalDir:NO after:NO];
+    return [self sessionAdjacentTo:session verticalDir:NO after:NO];
 }
 
 - (PTYSession*)sessionRightOf:(PTYSession*)session {
-    return [self _sessionAdjacentTo:session verticalDir:NO after:YES];
+    return [self sessionAdjacentTo:session verticalDir:NO after:YES];
 }
 
 - (PTYSession*)sessionAbove:(PTYSession*)session {
-    return [self _sessionAdjacentTo:session verticalDir:YES after:NO];
+    return [self sessionAdjacentTo:session verticalDir:YES after:NO];
 }
 
 - (PTYSession*)sessionBelow:(PTYSession*)session {
-    return [self _sessionAdjacentTo:session verticalDir:YES after:YES];
+    return [self sessionAdjacentTo:session verticalDir:YES after:YES];
 }
 
 - (void)updateLabelAttributes {
@@ -1212,7 +1257,6 @@ static void SetAgainstGrainDim(BOOL isVertical, NSSize *dest, CGFloat value) {
             NSSplitView* parentSplit = (NSSplitView*)[node superview];
             // 3. A non-root splitview's orientation must be the opposite of its parent's.
             ITCriticalError([node isVertical] != [parentSplit isVertical], @"A non-root splitview's orientation must be the opposite of its parent's. %@", when);
-            assert([node isVertical] != [parentSplit isVertical]);
         } else {
             if ([[node subviews] count] == 1) {
                 NSView* onlyChild = [[node subviews] objectAtIndex:0];
@@ -2394,6 +2438,7 @@ static void SetAgainstGrainDim(BOOL isVertical, NSSize *dest, CGFloat value) {
     while (root_.subviews.count) {
         [root_.subviews[0] removeFromSuperview];
     }
+    [root_ setVertical:tabToGut->root_.isVertical];
     while (tabToGut->root_.subviews.count) {
         [root_ addSubview:tabToGut->root_.subviews[0]];
     }
@@ -2438,7 +2483,8 @@ static void SetAgainstGrainDim(BOOL isVertical, NSSize *dest, CGFloat value) {
                     inTerminal:(NSWindowController<iTermWindowController> *)term
                hasFlexibleView:(BOOL)hasFlexible
                        viewMap:(NSDictionary<NSNumber *, SessionView *> *)viewMap
-                    sessionMap:(NSDictionary<NSString *, PTYSession *> *)sessionMap {
+                    sessionMap:(NSDictionary<NSString *, PTYSession *> *)sessionMap
+                tmuxController:(TmuxController *)tmuxController {
     PTYTab *theTab;
     NSMutableArray<PTYSession *> *revivedSessions = [NSMutableArray array];
     // Build a tree with splitters and SessionViews but no PTYSessions.
@@ -2449,6 +2495,7 @@ static void SetAgainstGrainDim(BOOL isVertical, NSSize *dest, CGFloat value) {
 
     // Create a tab.
     theTab = [[[PTYTab alloc] initWithRoot:newRoot sessions:nil] autorelease];
+    theTab->tmuxController_ = [tmuxController retain];
     if (hasFlexible) {
         [theTab enableFlexibleView];
     }
@@ -2522,7 +2569,8 @@ static void SetAgainstGrainDim(BOOL isVertical, NSSize *dest, CGFloat value) {
                                      inTerminal:term
                                 hasFlexibleView:hasFlexible
                                         viewMap:viewMap
-                                     sessionMap:sessionMap];
+                                     sessionMap:sessionMap
+                                 tmuxController:nil];
     if ([[theTab sessionViews] count] == 0) {
         return nil;
     }
@@ -2813,41 +2861,17 @@ static void SetAgainstGrainDim(BOOL isVertical, NSSize *dest, CGFloat value) {
     [self nameOfSession:self.activeSession didChangeTo:self.activeSession.name];
 }
 
-+ (Profile *)tmuxBookmark {
-    return [[ProfileModel sharedInstance] tmuxProfile];
-}
-
-+ (void)setTmuxFont:(NSFont *)font
-       nonAsciiFont:(NSFont *)nonAsciiFont
-           hSpacing:(double)hs
-           vSpacing:(double)vs {
-    [[ProfileModel sharedInstance] setObject:[font stringValue]
-                                       forKey:KEY_NORMAL_FONT
-                                   inBookmark:[PTYTab tmuxBookmark]];
-    [[ProfileModel sharedInstance] setObject:[nonAsciiFont stringValue]
-                                       forKey:KEY_NON_ASCII_FONT
-                                   inBookmark:[PTYTab tmuxBookmark]];
-    [[ProfileModel sharedInstance] setObject:[NSNumber numberWithDouble:hs]
-                                       forKey:KEY_HORIZONTAL_SPACING
-                                   inBookmark:[PTYTab tmuxBookmark]];
-    [[ProfileModel sharedInstance] setObject:[NSNumber numberWithDouble:vs]
-                                       forKey:KEY_VERTICAL_SPACING
-                                   inBookmark:[PTYTab tmuxBookmark]];
-    [[ProfileModel sharedInstance] postChangeNotification];
-}
-
 - (void)setTmuxFont:(NSFont *)font
        nonAsciiFont:(NSFont *)nonAsciiFont
            hSpacing:(double)hs
            vSpacing:(double)vs {
-    [PTYTab setTmuxFont:font nonAsciiFont:nonAsciiFont hSpacing:hs vSpacing:vs];
+    [self.tmuxController setTmuxFont:font nonAsciiFont:nonAsciiFont hSpacing:hs vSpacing:vs];
 }
 
 + (void)setSizesInTmuxParseTree:(NSMutableDictionary *)parseTree
                      inTerminal:(NSWindowController<iTermWindowController> *)term
-                         zoomed:(BOOL)zoomed {
-    Profile *bookmark = [PTYTab tmuxBookmark];
-
+                         zoomed:(BOOL)zoomed
+                        profile:(Profile *)profile {
     NSArray *theChildren = [parseTree objectForKey:kLayoutDictChildrenKey];
     BOOL haveMultipleSessions = ([theChildren count] > 1);
     BOOL showTitles =
@@ -2855,7 +2879,7 @@ static void SetAgainstGrainDim(BOOL isVertical, NSSize *dest, CGFloat value) {
     // Begin by decorating the tree with pixel sizes.
     [PTYTab _recursiveSetSizesInTmuxParseTree:parseTree
                                    showTitles:showTitles
-                                     bookmark:bookmark
+                                     bookmark:profile
                                    inTerminal:term];
 }
 
@@ -2879,7 +2903,10 @@ static void SetAgainstGrainDim(BOOL isVertical, NSSize *dest, CGFloat value) {
 }
 
 - (void)reloadTmuxLayout {
-    [PTYTab setSizesInTmuxParseTree:parseTree_ inTerminal:realParentWindow_ zoomed:isMaximized_];
+    [PTYTab setSizesInTmuxParseTree:parseTree_
+                         inTerminal:realParentWindow_
+                             zoomed:isMaximized_
+                            profile:self.tmuxController.profile];
     [self resizeViewsInViewHierarchy:root_ forNewLayout:parseTree_];
     [[root_ window] makeFirstResponder:[[self activeSession] textview]];
 }
@@ -2888,7 +2915,7 @@ static void SetAgainstGrainDim(BOOL isVertical, NSSize *dest, CGFloat value) {
                        inTerminal:(NSWindowController<iTermWindowController> *)term
                        tmuxWindow:(int)tmuxWindow
                    tmuxController:(TmuxController *)tmuxController {
-    [PTYTab setSizesInTmuxParseTree:parseTree inTerminal:term zoomed:NO];
+    [PTYTab setSizesInTmuxParseTree:parseTree inTerminal:term zoomed:NO profile:tmuxController.profile];
     parseTree = [PTYTab parseTreeWithInjectedRootSplit:parseTree];
 
     // Grow the window to fit the tab before adding it
@@ -2898,13 +2925,14 @@ static void SetAgainstGrainDim(BOOL isVertical, NSSize *dest, CGFloat value) {
 
     // Now we can make an arrangement and restore it.
     NSDictionary *arrangement = [PTYTab arrangementForDecoratedTmuxParseTree:parseTree
-                                                                    bookmark:[PTYTab tmuxBookmark]
+                                                                    bookmark:tmuxController.profile
                                                             activeWindowPane:0];
     PTYTab *theTab = [self tabWithArrangement:arrangement
                                    inTerminal:term
                               hasFlexibleView:YES
                                       viewMap:nil
-                                   sessionMap:nil];
+                                   sessionMap:nil
+                               tmuxController:tmuxController];
 
     NSArray *theChildren = [parseTree objectForKey:kLayoutDictChildrenKey];
     BOOL haveMultipleSessions = ([theChildren count] > 1);
@@ -2917,7 +2945,6 @@ static void SetAgainstGrainDim(BOOL isVertical, NSSize *dest, CGFloat value) {
 
     
     theTab->tmuxWindow_ = tmuxWindow;
-    theTab->tmuxController_ = [tmuxController retain];
     theTab->parseTree_ = [parseTree retain];
 
     if ([parseTree[kLayoutDictTabOpenedManually] boolValue]) {
@@ -2972,7 +2999,7 @@ static void SetAgainstGrainDim(BOOL isVertical, NSSize *dest, CGFloat value) {
              origin:(NSPoint)origin {
     BOOL first = YES;
     int minPos, size;
-    NSSize cellSize = [PTYTab cellSizeForBookmark:[PTYTab tmuxBookmark]];
+    NSSize cellSize = [PTYTab cellSizeForBookmark:self.tmuxController.profile];
     for (NSView *view in [splitter subviews]) {
         if (forHeight == [splitter isVertical]) {
             if ([splitter isVertical]) {
@@ -3094,7 +3121,7 @@ static void SetAgainstGrainDim(BOOL isVertical, NSSize *dest, CGFloat value) {
                                  targetSizePixels.height - rootSizePixels.height);
 
     // The size of a character
-    NSSize charSize = [PTYTab cellSizeForBookmark:[PTYTab tmuxBookmark]];
+    NSSize charSize = [PTYTab cellSizeForBookmark:self.tmuxController.profile];
 
     // The characters growth (+ growth, - shrinkage) needed to attain the target
     NSSize charsDiff = NSMakeSize(floor(sizeDiff.width / charSize.width),
@@ -3235,7 +3262,7 @@ static void SetAgainstGrainDim(BOOL isVertical, NSSize *dest, CGFloat value) {
     NSMutableDictionary *arrangement = [NSMutableDictionary dictionary];
     parseTree = [PTYTab parseTreeWithInjectedRootSplit:parseTree];
     [arrangement setObject:[PTYTab _recursiveArrangementForDecoratedTmuxParseTree:parseTree
-                                                                         bookmark:[PTYTab tmuxBookmark]
+                                                                         bookmark:self.tmuxController.profile
                                                                            origin:NSZeroPoint
                                                                  activeWindowPane:[activeSession_ tmuxPane]]
                     forKey:TAB_ARRANGEMENT_ROOT];
@@ -3323,7 +3350,8 @@ static void SetAgainstGrainDim(BOOL isVertical, NSSize *dest, CGFloat value) {
     DLog(@"setTmuxLayout:tmuxController:");
     [PTYTab setSizesInTmuxParseTree:parseTree
                          inTerminal:realParentWindow_
-                             zoomed:shouldZoom];
+                             zoomed:shouldZoom
+                            profile:tmuxController.profile];
     DLog(@"Parse tree including sizes:\n%@", parseTree);
     if ([self parseTree:parseTree matchesViewHierarchy:root_]) {
         DLog(@"Parse tree matches the root's view hierarchy.");
@@ -3367,7 +3395,10 @@ static void SetAgainstGrainDim(BOOL isVertical, NSSize *dest, CGFloat value) {
                  kLayoutDictXOffsetKey: @0,
                  kLayoutDictYOffsetKey: @0,
              } mutableCopy] autorelease];
-        [PTYTab setSizesInTmuxParseTree:maximizedParseTree inTerminal:realParentWindow_ zoomed:YES];
+        [PTYTab setSizesInTmuxParseTree:maximizedParseTree
+                             inTerminal:realParentWindow_
+                                 zoomed:YES
+                                profile:tmuxController.profile];
         [self resizeViewsInViewHierarchy:root_ forNewLayout:maximizedParseTree];
         [self fitSubviewsToRoot];
     }
@@ -3475,7 +3506,7 @@ static void SetAgainstGrainDim(BOOL isVertical, NSSize *dest, CGFloat value) {
 - (void)resizeTmuxSessionView:(SessionView *)sessionView toGridSize:(VT100GridSize)gridSize {
     DLog(@"resize view %@ to grid size %@", sessionView, VT100GridSizeDescription(gridSize));
     const BOOL showTitles = [iTermPreferences boolForKey:kPreferenceKeyShowPaneTitles];
-    NSSize size = [PTYTab _sessionSizeWithCellSize:[PTYTab cellSizeForBookmark:[PTYTab tmuxBookmark]]
+    NSSize size = [PTYTab _sessionSizeWithCellSize:[PTYTab cellSizeForBookmark:self.tmuxController.profile]
                                         dimensions:NSMakeSize(gridSize.width, gridSize.height)
                                         showTitles:showTitles
                                         inTerminal:self.realParentWindow];
@@ -3788,7 +3819,7 @@ static void SetAgainstGrainDim(BOOL isVertical, NSSize *dest, CGFloat value) {
     PTYSession *session = [self sessionForSessionView:sessionView];
 
     // Determine the number of characters moved
-    NSSize cellSize = [PTYTab cellSizeForBookmark:[PTYTab tmuxBookmark]];
+    NSSize cellSize = [PTYTab cellSizeForBookmark:self.tmuxController.profile];
     int amount;
     if (pxMoved.width) {
         amount = pxMoved.width / cellSize.width;
@@ -4731,4 +4762,25 @@ static void SetAgainstGrainDim(BOOL isVertical, NSSize *dest, CGFloat value) {
         [_delegate tabRemoveTab:self];
     }
 }
+
+- (VT100GridSize)sessionTmuxSizeWithProfile:(Profile *)profile {
+    if ([iTermAdvancedSettingsModel tmuxUsesDedicatedProfile]) {
+        return VT100GridSizeMake([[profile objectForKey:KEY_COLUMNS] intValue],
+                                 [[profile objectForKey:KEY_ROWS] intValue]);
+    } else {
+        NSSize frameSize = tabView_.frame.size;
+        PTYSession *anySession = self.sessions.firstObject;
+
+        NSSize contentSize = [NSScrollView contentSizeForFrameSize:frameSize
+                                           horizontalScrollerClass:nil
+                                             verticalScrollerClass:[realParentWindow_ scrollbarShouldBeVisible] ? [[anySession.view.scrollview verticalScroller] class] : nil
+                                                        borderType:anySession.view.scrollview.borderType
+                                                       controlSize:NSRegularControlSize
+                                                     scrollerStyle:anySession.view.scrollview.scrollerStyle];
+        NSSize cellSize = [PTYTab cellSizeForBookmark:profile];
+        return VT100GridSizeMake((contentSize.width - [iTermAdvancedSettingsModel terminalMargin] * 2) / cellSize.width,
+                                 (contentSize.height - [iTermAdvancedSettingsModel terminalVMargin] * 2) / cellSize.height);
+    }
+}
+
 @end

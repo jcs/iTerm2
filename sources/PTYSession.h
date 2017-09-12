@@ -27,6 +27,10 @@ extern NSString *const kPTYSessionTmuxFontDidChange;
 // Called when captured output for the current session changes.
 extern NSString *const kPTYSessionCapturedOutputDidChange;
 
+extern NSString *const PTYSessionCreatedNotification;
+extern NSString *const PTYSessionTerminatedNotification;
+extern NSString *const PTYSessionRevivedNotification;
+
 @class CapturedOutput;
 @class FakeWindow;
 @class iTermAnnouncementViewController;
@@ -152,10 +156,8 @@ typedef enum {
            hSpacing:(double)horizontalSpacing
            vSpacing:(double)verticalSpacing;
 
-// Notify the tab that this session, which is a tmux gateway, received a rename of a tmux window.
-- (void)sessionWithTmuxGateway:(PTYSession *)session
-       wasNotifiedWindowWithId:(int)windowId
-                     renamedTo:(NSString *)newName;
+// The tmux window title changed.
+- (void)sessionDidChangeTmuxWindowNameTo:(NSString *)newName;
 
 // Returns the objectSpecifier of the tab (used to identify a tab for Applescript).
 - (NSScriptObjectSpecifier *)objectSpecifier;
@@ -188,6 +190,9 @@ typedef enum {
 
 // Remove a session from the tab, even if it's the only one.
 - (void)sessionRemoveSession:(PTYSession *)session;
+
+// Returns the size of the tab in rows x cols. Initial tmux client size.
+- (VT100GridSize)sessionTmuxSizeWithProfile:(Profile *)profile;
 
 @end
 
@@ -436,6 +441,12 @@ typedef enum {
 
 @property(nonatomic, readonly) NSDictionary<NSString *, NSString *> *keyLabels;
 @property(nonatomic, readonly) iTermRestorableSession *restorableSession;
+@property(nonatomic) BOOL copyMode;
+
+// Is the user currently typing at a password prompt?
+@property(nonatomic, readonly) BOOL passwordInput;
+
+@property(nonatomic) BOOL isSingleUseSession;
 
 #pragma mark - methods
 
@@ -454,6 +465,9 @@ typedef enum {
 // Forget all sessions registered with registerSessionInArrangement. Normally
 // called after startup activities are done.
 + (void)removeAllRegisteredSessions;
+
+- (instancetype)init NS_UNAVAILABLE;
+- (instancetype)initSynthetic:(BOOL)synthetic NS_DESIGNATED_INITIALIZER;
 
 // Jump to a particular point in time.
 - (long long)irSeekToAtLeast:(long long)timestamp;
@@ -634,7 +648,12 @@ typedef enum {
 - (void)setFocused:(BOOL)focused;
 - (BOOL)wantsContentChangedNotification;
 
-- (void)startTmuxMode;
+// The dcsID identifies the parser associated with this session. Parsers run in
+// a different thread and communication between the main thread and the parser
+// thread use the dcsID to ensure that the current parser is still the one that
+// the main thread is expecting.
+- (void)startTmuxMode:(NSString *)dcsID;
+
 - (void)tmuxDetach;
 // Two sessions are compatible if they may share the same tab. Tmux clients
 // impose this restriction because they must belong to the same controller.
@@ -700,6 +719,8 @@ typedef enum {
 
 // Undoes burying of a session.
 - (void)disinter;
+
+- (void)jumpToLocationWhereCurrentStatusChanged;
 
 #pragma mark - API
 

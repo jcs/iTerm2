@@ -183,5 +183,15 @@
 + (double)underlineCursorOffset;
 + (BOOL)logRestorableStateSize;
 + (NSString *)autoLogFormat;
++ (BOOL)killSessionsOnLogout;
++ (BOOL)tmuxUsesDedicatedProfile;
++ (BOOL)detectPasswordInput;
++ (BOOL)disablePasswordManagerAnimations;
++ (BOOL)focusNewSplitPaneWithFocusFollowsMouse;
++ (NSString *)viewManPageCommand;
++ (BOOL)preventEscapeSequenceFromClearingHistory;
++ (BOOL)dwcLineCache;
++ (BOOL)lowFiCombiningMarks;
++ (CGFloat)verticalBarCursorWidth;
 
 @end

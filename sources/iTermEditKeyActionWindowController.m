@@ -70,8 +70,21 @@
     _actionMode.state = (self.inActionMode ? NSOnState : NSOffState);
     if (self.action == KEY_ACTION_SELECT_MENU_ITEM) {
         [[self class] populatePopUpButtonWithMenuItems:_menuToSelectPopup
-                                         selectedValue:[[_menuToSelectPopup selectedItem] title]];
-        [_menuToSelectPopup selectItemWithTitle:self.parameterValue];
+                                         selectedTitle:[[_menuToSelectPopup selectedItem] title]
+                                            identifier:_menuToSelectPopup.selectedItem.identifier];
+        NSArray *parts = [self.parameterValue componentsSeparatedByString:@"\n"];
+        if (parts.count < 2) {
+            [_menuToSelectPopup selectItemWithTitle:self.parameterValue];
+        } else {
+            NSInteger index = [_menuToSelectPopup.itemArray indexOfObjectPassingTest:^BOOL(NSMenuItem * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+                return [obj.identifier isEqualToString:parts[1]];
+            }];
+            if (index == NSNotFound) {
+                [_menuToSelectPopup selectItemWithTitle:parts.firstObject];
+            } else {
+                [_menuToSelectPopup selectItemAtIndex:index];
+            }
+        }
     }
 
     _pasteSpecialViewController = [[iTermPasteSpecialViewController alloc] init];
@@ -403,7 +416,8 @@
 }
 
 + (void)populatePopUpButtonWithMenuItems:(NSPopUpButton *)button
-                           selectedValue:(NSString *)selectedValue {
+                           selectedTitle:(NSString *)selectedValue
+                              identifier:(NSString *)identifier {
     [self recursiveAddMenu:[NSApp mainMenu] toButtonMenu:[button menu] depth:0];
     if (selectedValue) {
         NSMenuItem *theItem = [[button menu] itemWithTitle:selectedValue];
@@ -435,6 +449,7 @@
         }
         NSMenuItem *theItem = [[[NSMenuItem alloc] init] autorelease];
         [theItem setTitle:[item title]];
+        theItem.identifier = item.identifier;
         [theItem setIndentationLevel:depth];
         if ([item hasSubmenu]) {
             if (depth == 0 && [[buttonMenu itemArray] count]) {
@@ -458,7 +473,8 @@
     [_profilePopup populateWithProfilesSelectingGuid:guid];
     [_colorPresetsPopup loadColorPresetsSelecting:_colorPresetsPopup.selectedItem.representedObject];
     [[self class] populatePopUpButtonWithMenuItems:_menuToSelectPopup
-                                     selectedValue:[[_menuToSelectPopup selectedItem] title]];
+                                     selectedTitle:[[_menuToSelectPopup selectedItem] title]
+                                        identifier:_menuToSelectPopup.selectedItem.identifier];
     [self updateViewsAnimated:YES];
 }
 
@@ -482,7 +498,11 @@
 
     switch (self.action) {
         case KEY_ACTION_SELECT_MENU_ITEM:
-            self.parameterValue = [[_menuToSelectPopup selectedItem] title];
+            if (_menuToSelectPopup.selectedItem.identifier.length) {
+              self.parameterValue = [NSString stringWithFormat:@"%@\n%@", _menuToSelectPopup.selectedItem.title, _menuToSelectPopup.selectedItem.identifier ?: @""];
+            } else {
+                self.parameterValue = [[_menuToSelectPopup selectedItem] title];
+            }
             break;
 
 

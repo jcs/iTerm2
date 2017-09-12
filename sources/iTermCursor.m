@@ -20,6 +20,10 @@
 @interface iTermBoxCursor : iTermCursor
 @end
 
+@interface iTermCopyModeCursor : iTermCursor
+@property (nonatomic) BOOL selecting;
+@end
+
 @implementation iTermCursor
 
 + (iTermCursor *)cursorOfType:(ITermCursorType)theType {
@@ -38,6 +42,11 @@
     }
 }
 
++ (instancetype)copyModeCursorInSelectionState:(BOOL)selecting {
+    iTermCopyModeCursor *cursor = [[[iTermCopyModeCursor alloc] init] autorelease];
+    cursor.selecting = selecting;
+    return cursor;
+}
 
 - (void)drawWithRect:(NSRect)rect
          doubleWidth:(BOOL)doubleWidth
@@ -100,13 +109,53 @@
              focused:(BOOL)focused
                coord:(VT100GridCoord)coord
              outline:(BOOL)outline {
-    NSRect cursorRect = NSMakeRect(rect.origin.x, rect.origin.y, 1, rect.size.height);
+    NSRect cursorRect = NSMakeRect(rect.origin.x, rect.origin.y, [iTermAdvancedSettingsModel verticalBarCursorWidth], rect.size.height);
     if (outline) {
         [self drawOutlineOfRect:cursorRect withColor:backgroundColor];
     } else {
         [backgroundColor set];
         NSRectFill(cursorRect);
     }
+}
+
+@end
+
+@implementation iTermCopyModeCursor
+
+- (void)drawWithRect:(NSRect)rect
+         doubleWidth:(BOOL)doubleWidth
+          screenChar:(screen_char_t)screenChar
+     backgroundColor:(NSColor *)backgroundColor
+     foregroundColor:(NSColor *)foregroundColor
+               smart:(BOOL)smart
+             focused:(BOOL)focused
+               coord:(VT100GridCoord)coord
+             outline:(BOOL)outline {
+    const CGFloat heightFraction = 1 / 3.0;
+    NSRect cursorRect = NSMakeRect(rect.origin.x - rect.size.width,
+                                   rect.origin.y,
+                                   rect.size.width * 2,
+                                   rect.size.height * heightFraction);
+
+    const CGFloat r = self.selecting ? 2 : 1;
+    NSBezierPath *path = [[[NSBezierPath alloc] init] autorelease];
+    path = [[[NSBezierPath alloc] init] autorelease];
+    [path moveToPoint:NSMakePoint(NSMinX(cursorRect), NSMinY(cursorRect))];
+    [path lineToPoint:NSMakePoint(NSMidX(cursorRect) - r, NSMaxY(cursorRect))];
+    [path lineToPoint:NSMakePoint(NSMidX(cursorRect) - r, NSMaxY(rect))];
+    [path lineToPoint:NSMakePoint(NSMidX(cursorRect) + r, NSMaxY(rect))];
+    [path lineToPoint:NSMakePoint(NSMidX(cursorRect) + r, NSMaxY(cursorRect))];
+    [path lineToPoint:NSMakePoint(NSMaxX(cursorRect), NSMinY(cursorRect))];
+    [path lineToPoint:NSMakePoint(NSMinX(cursorRect), NSMinY(cursorRect))];
+    if (self.selecting) {
+        [[NSColor colorWithRed:0xc1 / 255.0 green:0xde / 255.0 blue:0xff / 255.0 alpha:1] set];
+    } else {
+        [[NSColor whiteColor] set];
+    }
+    [path fill];
+
+    [[NSColor blackColor] set];
+    [path stroke];
 }
 
 @end
@@ -144,12 +193,14 @@
         CGContextRef ctx = (CGContextRef)[[NSGraphicsContext currentContext] graphicsPort];
         if (smart && focused) {
             [self drawSmartCursorCharacter:screenChar
+                               doubleWidth:doubleWidth
                            backgroundColor:backgroundColor
                                        ctx:ctx
                                      coord:coord];
         } else {
             // Non-smart
             [self.delegate cursorDrawCharacterAt:coord
+                                     doubleWidth:doubleWidth
                                    overrideColor:foregroundColor
                                          context:ctx
                                  backgroundColor:backgroundColor];
@@ -158,6 +209,7 @@
 }
 
 - (void)drawSmartCursorCharacter:(screen_char_t)screenChar
+                     doubleWidth:(BOOL)doubleWidth
                  backgroundColor:(NSColor *)backgroundColor
                              ctx:(CGContextRef)ctx
                            coord:(VT100GridCoord)coord {
@@ -169,6 +221,7 @@
                                                                   backgroundColor:backgroundColor];
 
     [self.delegate cursorDrawCharacterAt:coord
+                             doubleWidth:doubleWidth
                            overrideColor:overrideColor
                                  context:ctx
                          backgroundColor:nil];

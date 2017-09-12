@@ -22,6 +22,7 @@ static NSString *const kImageInfoPreserveAspectRatioKey = @"Preserve Aspect Rati
 static NSString *const kImageInfoFilenameKey = @"Filename";
 static NSString *const kImageInfoInsetKey = @"Edge Insets";
 static NSString *const kImageInfoCodeKey = @"Code";
+static NSString *const kImageInfoBrokenKey = @"Broken";
 
 NSString *const iTermImageDidLoad = @"iTermImageDidLoad";
 
@@ -51,6 +52,7 @@ NSString *const iTermImageDidLoad = @"iTermImageDidLoad";
     self = [super init];
     if (self) {
         _size = [dictionary[kImageInfoSizeKey] sizeValue];
+        _broken = [dictionary[kImageInfoBrokenKey] boolValue];
         _inset = [dictionary[kImageInfoInsetKey] futureEdgeInsetsValue];
         _data = [dictionary[kImageInfoImageKey] retain];
         _dictionary = [dictionary copy];
@@ -136,6 +138,45 @@ NSString *const iTermImageDidLoad = @"iTermImageDidLoad";
     [super dealloc];
 }
 
+- (void)saveToFile:(NSString *)filename {
+    NSBitmapImageFileType fileType = NSPNGFileType;
+    if ([filename hasSuffix:@".bmp"]) {
+        fileType = NSBMPFileType;
+    } else if ([filename hasSuffix:@".gif"]) {
+        fileType = NSGIFFileType;
+    } else if ([filename hasSuffix:@".jp2"]) {
+        fileType = NSJPEG2000FileType;
+    } else if ([filename hasSuffix:@".jpg"] || [filename hasSuffix:@".jpeg"]) {
+        fileType = NSJPEGFileType;
+    } else if ([filename hasSuffix:@".png"]) {
+        fileType = NSPNGFileType;
+    } else if ([filename hasSuffix:@".tiff"]) {
+        fileType = NSTIFFFileType;
+    }
+
+    NSData *data = nil;
+    NSDictionary *universalTypeToCocoaMap = @{ (NSString *)kUTTypeBMP: @(NSBMPFileType),
+                                               (NSString *)kUTTypeGIF: @(NSGIFFileType),
+                                               (NSString *)kUTTypeJPEG2000: @(NSJPEG2000FileType),
+                                               (NSString *)kUTTypeJPEG: @(NSJPEGFileType),
+                                               (NSString *)kUTTypePNG: @(NSPNGFileType),
+                                               (NSString *)kUTTypeTIFF: @(NSTIFFFileType) };
+    NSString *imageType = self.imageType;
+    if (self.broken) {
+        data = self.data;
+    } else if (imageType) {
+        NSNumber *nsTypeNumber = universalTypeToCocoaMap[imageType];
+        if (nsTypeNumber.integerValue == fileType) {
+            data = self.data;
+        }
+    }
+    if (!data) {
+        NSBitmapImageRep *rep = [self.image.images.firstObject bitmapImageRep];
+        data = [rep representationUsingType:fileType properties:@{}];
+    }
+    [data writeToFile:filename atomically:NO];
+}
+
 - (void)setImageFromImage:(iTermImage *)image data:(NSData *)data {
     [_dictionary release];
     _dictionary = nil;
@@ -165,7 +206,8 @@ NSString *const iTermImageDidLoad = @"iTermImageDidLoad";
               kImageInfoImageKey: _data ?: [NSData data],
               kImageInfoPreserveAspectRatioKey: @(_preserveAspectRatio),
               kImageInfoFilenameKey: _filename ?: @"",
-              kImageInfoCodeKey: @(_code)};
+              kImageInfoCodeKey: @(_code),
+              kImageInfoBrokenKey: @(_broken) };
 }
 
 

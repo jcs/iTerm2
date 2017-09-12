@@ -121,7 +121,7 @@
 - (int)screenViewIndex;
 
 // Requests that tmux integration mode begin.
-- (void)screenStartTmuxMode;
+- (void)screenStartTmuxModeWithDCSIdentifier:(NSString *)dcsID;
 
 // Handle a line of input in tmux mode in the token's string.
 - (void)screenHandleTmuxInput:(VT100Token *)token;
@@ -222,6 +222,8 @@
 
 - (void)screenCurrentHostDidChange:(VT100RemoteHost *)host;
 - (void)screenCurrentDirectoryDidChangeTo:(NSString *)newPath;
+- (void)screenDidReceiveCustomEscapeSequenceWithParameters:(NSDictionary<NSString *, NSString *> *)parameters
+                                                   payload:(NSString *)payload;
 
 // Ok to write to shell?
 - (BOOL)screenShouldSendReport;

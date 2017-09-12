@@ -12,6 +12,8 @@
 #import "DebugLogging.h"
 #import "NSDictionary+iTerm.h"
 #import "NSImage+iTerm.h"
+#import "NSStringITerm.h"
+#import "iTermAdvancedSettingsModel.h"
 #import "iTermColorPresets.h"
 #import "iTermKeyBindingMgr.h"
 #import "iTermRootTerminalView.h"
@@ -31,10 +33,11 @@ static NSString *const iTermTouchBarIdentifierFunctionKeys = @"iTermTouchBarIden
 static NSString *const iTermTouchBarIdentifierColorPresetScrollview = @"iTermTouchBarIdentifierColorPresetScrollview";
 static NSString *const iTermTouchBarIdentifierAutocomplete = @"iTermTouchBarIdentifierAutocomplete";
 static NSString *const iTermTouchBarFunctionKeysScrollView  = @"iTermTouchBarFunctionKeysScrollView";
+static NSString *const iTermTouchBarIdentifierStatus = @"iTermTouchBarIdentifierStatus";
 
 ITERM_IGNORE_PARTIAL_BEGIN
 
-@implementation PseudoTerminal (TouchBar) 
+@implementation PseudoTerminal (TouchBar)
 
 - (void)updateTouchBarFunctionKeyLabels {
     if (!IsTouchBarAvailable()) {
@@ -50,6 +53,7 @@ ITERM_IGNORE_PARTIAL_BEGIN
     item = [popoverTouchBar itemForIdentifier:iTermTouchBarFunctionKeysScrollView];
     scrollView = (NSScrollView *)item.view;
     [self updateTouchBarFunctionKeyLabelsInScrollView:scrollView];
+    [self updateStatus];
 }
 
 - (void)updateTouchBarWithWordAtCursor:(NSString *)word {
@@ -58,6 +62,23 @@ ITERM_IGNORE_PARTIAL_BEGIN
         if (item) {
             iTermTouchBarButton *button = (iTermTouchBarButton *)item.view;
             [self updateManPageButton:button word:word];
+        }
+    }
+}
+
+- (void)updateStatus {
+    NSTouchBarItem *item = [self.touchBar itemForIdentifier:iTermTouchBarIdentifierStatus];
+    if (item) {
+        iTermTouchBarButton *button = (iTermTouchBarButton *)item.view;
+        NSString *touchBarStatusString = self.currentSession.keyLabels[@"status"];
+        if (touchBarStatusString == nil) {
+            button.title = @"Status";
+            button.enabled = NO;
+            item.visibilityPriority = NSTouchBarItemPriorityLow;
+        } else {
+            button.title = touchBarStatusString;
+            button.enabled = YES;
+            item.visibilityPriority = NSTouchBarItemPriorityNormal;
         }
     }
 }
@@ -120,7 +141,8 @@ ITERM_IGNORE_PARTIAL_BEGIN
                           iTermTouchBarIdentifierAddMark,
                           iTermTouchBarIdentifierNextMark,
                           iTermTouchBarIdentifierPreviousMark,
-                          iTermTouchBarIdentifierAutocomplete ];
+                          iTermTouchBarIdentifierAutocomplete,
+                          iTermTouchBarIdentifierStatus ];
         ids = [ids arrayByAddingObjectsFromArray:[iTermKeyBindingMgr sortedTouchBarKeysInDictionary:[iTermKeyBindingMgr globalTouchBarMap]]];
         self.touchBar.customizationAllowedItemIdentifiers = ids;
         [self updateTouchBarFunctionKeyLabels];
@@ -151,7 +173,9 @@ ITERM_IGNORE_PARTIAL_BEGIN
             button.title = word;
             button.imagePosition = NSImageLeft;
             button.enabled = YES;
-            button.keyBindingAction = @{ @"command": [NSString stringWithFormat:@"man %@", [word stringWithEscapedShellCharactersIncludingNewlines:YES]] };
+            NSString *manCommand = [NSString stringWithFormat:[iTermAdvancedSettingsModel viewManPageCommand],
+                                    [word stringWithEscapedShellCharactersIncludingNewlines:YES]];
+            button.keyBindingAction = @{ @"command": manCommand };
         }
     } else if (button.enabled) {
         button.title = @"";
@@ -341,6 +365,9 @@ ITERM_IGNORE_PARTIAL_BEGIN
     if ([identifier isEqualToString:iTermTouchBarIdentifierManPage]) {
         selector = @selector(manPageTouchBarItemSelected:);
         label = @"Man Page";
+    } else if ([identifier isEqualToString:iTermTouchBarIdentifierStatus]) {
+        selector = @selector(statusTouchBarItemSelected:);
+        label = @"Your Message Here";
     } else if ([identifier isEqualToString:iTermTouchBarIdentifierAddMark]) {
         image = [[NSImage imageNamed:@"Add Mark Touch Bar Icon"] imageWithColor:[NSColor labelColor]];
         selector = @selector(addMarkTouchBarItemSelected:);
@@ -442,18 +469,12 @@ ITERM_IGNORE_PARTIAL_BEGIN
 - (void)manPageTouchBarItemSelected:(iTermTouchBarButton *)sender {
     NSString *command = sender.keyBindingAction[@"command"];
     if (command) {
-        [[iTermController sharedInstance] launchBookmark:nil
-                                              inTerminal:nil
-                                                 withURL:nil
-                                        hotkeyWindowType:iTermHotkeyWindowTypeNone
-                                                 makeKey:YES
-                                             canActivate:YES
-                                                 command:command
-                                                   block:^PTYSession *(Profile *profile, PseudoTerminal *term) {
-                                                       profile = [profile dictionaryBySettingObject:@"" forKey:KEY_INITIAL_TEXT];
-                                                       return [term createTabWithProfile:profile withCommand:command];
-                                                   }];
+        [[iTermController sharedInstance] openSingleUseWindowWithCommand:command];
     }
+}
+
+- (void)statusTouchBarItemSelected:(iTermTouchBarButton *)sender {
+    [self.currentSession jumpToLocationWhereCurrentStatusChanged];
 }
 
 - (void)colorPresetTouchBarItemSelected:(iTermTouchBarButton *)sender {

@@ -113,22 +113,31 @@
     if ([iTermAdvancedSettingsModel useVirtualKeyCodesForDetectingDigits]) {
         switch (event.keyCode) {
             case kVK_ANSI_1:
+            case kVK_ANSI_Keypad1:
                 return 1;
             case kVK_ANSI_2:
+            case kVK_ANSI_Keypad2:
                 return 2;
             case kVK_ANSI_3:
+            case kVK_ANSI_Keypad3:
                 return 3;
             case kVK_ANSI_4:
+            case kVK_ANSI_Keypad4:
                 return 4;
             case kVK_ANSI_5:
+            case kVK_ANSI_Keypad5:
                 return 5;
             case kVK_ANSI_6:
+            case kVK_ANSI_Keypad6:
                 return 6;
             case kVK_ANSI_7:
+            case kVK_ANSI_Keypad7:
                 return 7;
             case kVK_ANSI_8:
+            case kVK_ANSI_Keypad8:
                 return 8;
             case kVK_ANSI_9:
+            case kVK_ANSI_Keypad9:
                 return 9;
         }
         return -1;
@@ -253,7 +262,7 @@
         }
     }
 
-    if (okToRemap && [currentSession hasActionableKeyMappingForEvent:event]) {
+    if (okToRemap && [currentSession hasActionableKeyMappingForEvent:event] && !currentSession.copyMode) {
         // Remap key.
         DLog(@"Remapping to actionable event");
         [currentSession keyDown:event];
@@ -382,7 +391,7 @@
 }
 
 - (NSArray<iTermScriptingWindow *> *)orderedScriptingWindows {
-    return [self.windows mapWithBlock:^id(NSWindow *window) {
+    return [self.orderedWindows mapWithBlock:^id(NSWindow *window) {
         if ([window conformsToProtocol:@protocol(PTYWindow)]) {
             return [iTermScriptingWindow scriptingWindowWithWindow:window];
         } else {
@@ -431,11 +440,6 @@
 - (NSArray<NSWindow *> *)orderedWindowsPlusAllHotkeyPanels {
     NSArray<NSWindow *> *panels = [[iTermHotKeyController sharedInstance] allFloatingHotkeyWindows] ?: @[];
     return [panels arrayByAddingObjectsFromArray:[self orderedWindows]];
-}
-
-- (BOOL)sendAction:(SEL)action to:(nullable id)target from:(nullable id)sender {
-    ILog(@"sendAction:%@ to:%@ from:%@", NSStringFromSelector(action), target, sender);
-    return [super sendAction:action to:target from:sender];
 }
 
 @end

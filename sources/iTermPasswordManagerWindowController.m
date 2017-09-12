@@ -9,6 +9,7 @@
 #import "iTermPasswordManagerWindowController.h"
 
 #import "DebugLogging.h"
+#import "iTermApplication.h"
 #import "iTermSearchField.h"
 #import "iTermSystemVersion.h"
 #import <LocalAuthentication/LocalAuthentication.h>
@@ -67,9 +68,15 @@ static BOOL sAuthenticated;
     NSString *myLocalizedReasonString = @"open the password manager";
     // You're supposed to hold a reference to the context until it's done doing its thing.
     [myContext retain];
+    if (policy == LAPolicyDeviceOwnerAuthentication) {
+        [[iTermApplication sharedApplication] setLocalAuthenticationDialogOpen:YES];
+    }
     [myContext evaluatePolicy:policy
               localizedReason:myLocalizedReasonString
                         reply:^(BOOL success, NSError *error) {
+                            if (policy == LAPolicyDeviceOwnerAuthentication) {
+                                [[iTermApplication sharedApplication] setLocalAuthenticationDialogOpen:NO];
+                            }
                             if (success) {
                                 dispatch_async(dispatch_get_main_queue(), ^{
                                     sAuthenticated = YES;
@@ -160,6 +167,11 @@ static BOOL sAuthenticated;
     }
 }
 
+// Opening this window should not cause the hotkey window to hide.
+- (BOOL)autoHidesHotKeyWindow {
+    return NO;
+}
+
 #pragma mark - APIs
 
 - (void)update {
@@ -193,12 +205,7 @@ static BOOL sAuthenticated;
 }
 
 - (void)doubleClickOnTableView:(id)sender {
-    if ([_tableView clickedColumn] == 1) {
-        if (!_passwordBeingShown && [_tableView selectedRow] >= 0) {
-            [self setPasswordBeingShown:[self selectedPassword] onRow:[_tableView selectedRow]];
-            [_tableView reloadData];
-        }
-    } else if ([_tableView selectedRow] >= 0) {
+    if ([_tableView selectedRow] >= 0) {
         [self enterPassword:nil];
     }
 }
@@ -229,8 +236,10 @@ static BOOL sAuthenticated;
 
 - (IBAction)edit:(id)sender {
     if ([_tableView selectedRow] >= 0) {
+        NSInteger row = _tableView.selectedRow;
+        [self setPasswordBeingShown:[self selectedPassword] onRow:row];
         [_tableView editColumn:[[_tableView tableColumns] indexOfObject:_passwordColumn]
-                           row:[_tableView selectedRow]
+                           row:row
                      withEvent:nil
                         select:YES];
     }
@@ -249,6 +258,13 @@ static BOOL sAuthenticated;
         [self.window.sheetParent endSheet:self.window];
     } else {
         [self.window close];
+    }
+}
+
+- (IBAction)revealPassword:(id)sender {
+    if (!_passwordBeingShown && [_tableView selectedRow] >= 0) {
+        [self setPasswordBeingShown:[self selectedPassword] onRow:[_tableView selectedRow]];
+        [_tableView reloadData];
     }
 }
 
@@ -315,6 +331,11 @@ static BOOL sAuthenticated;
 
 - (void)authenticateWithPolicy:(LAPolicy)policy context:(LAContext *)myContext {
     [[self class] authenticateWithPolicy:policy context:myContext reply:^(BOOL success, NSError * _Nullable error) {
+        // When a sheet is attached to a hotkey window another app becomes active after the auth dialog
+        // is dismissed, leaving the hotkey behind another app.
+        [NSApp activateIgnoringOtherApps:YES];
+        [self.window.sheetParent makeKeyAndOrderFront:nil];
+
         if (success) {
             [self reloadAccounts];
             [[self window] makeFirstResponder:_searchField];

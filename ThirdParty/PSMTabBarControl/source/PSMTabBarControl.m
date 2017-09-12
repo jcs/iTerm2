@@ -216,6 +216,37 @@ const NSInteger kPSMStartResizeAnimation = 0;
     }
 }
 
+- (void)sanityCheckFailedWithCallsite:(NSString *)callsite reason:(NSString *)reason {
+    ILog(@"Sanity check failed from %@ for reason %@. Cells=%@. tabView.tabViewItems=%@ stack:\n%@",
+         callsite,
+         reason,
+         self.cells,
+         self.tabView.tabViewItems,
+         [NSThread callStackSymbols]);
+}
+
+- (void)sanityCheck:(NSString *)callsite {
+    [self sanityCheck:callsite force:NO];
+}
+
+- (void)sanityCheck:(NSString *)callsite force:(BOOL)force {
+    if (!force && [[PSMTabDragAssistant sharedDragAssistant] isDragging]) {
+        ILog(@"Skip sanity check during drag from callsite %@", callsite);
+        return;
+    }
+    if (self.tabView.tabViewItems.count != self.cells.count) {
+        [self sanityCheckFailedWithCallsite:callsite reason:@"count mismatch"];
+    } else {
+        for (NSInteger i = 0; i < self.cells.count; i++) {
+            NSTabViewItem *tabViewItem = self.tabView.tabViewItems[i];
+            PSMTabBarCell *cell = self.cells[i];
+            if (cell.representedObject != tabViewItem) {
+                [self sanityCheckFailedWithCallsite:callsite reason:@"cells[i].representedObject != tabView.tabViewItems[i].representedObject"];
+            }
+        }
+        NSLog(@"Sanity check passed. cells=%@. tabView.tabViewITems=%@", self.cells, self.tabView.tabViewItems);
+    }
+}
 
 #pragma mark -
 #pragma mark Accessors

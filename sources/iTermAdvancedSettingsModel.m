@@ -118,6 +118,7 @@ DEFINE_STRING(findUrlsRegex,
               @"((:[0-9]+)?)(/[a-zA-Z0-9;:/\\.\\-_+%~?&amp;@=#\\(\\)]*)?",
               @"Terminal: Regular expression for “Find URLs” command.");
 DEFINE_FLOAT(echoProbeDuration, 0.5, @"Terminal: Amount of time to wait while testing if echo is on (seconds).\nThis is used by the password manager to ensure you're at a password prompt.");
+DEFINE_BOOL(disablePasswordManagerAnimations, NO, @"Terminal: Disable animations for showing/hiding password manager.");
 DEFINE_BOOL(optionIsMetaForSpecialChars, YES, @"Terminal: When you press an arrow key or other function key that transmits the modifiers, should Option be translated to Meta?\nIf this is set to No then it will be translated to Alt.");
 DEFINE_BOOL(noSyncSilenceAnnoyingBellAutomatically, NO, @"Terminal: Automatically silence bell when it rings too much.");
 DEFINE_BOOL(restoreWindowContents, YES, @"Terminal: Restore window contents at startup.\nThis requires “System Prefs>General>Close windows when quitting an app” to be off.");
@@ -129,6 +130,8 @@ DEFINE_BOOL(useColorfgbgFallback, YES, @"Terminal: Use fallback for COLORFGBG if
 DEFINE_BOOL(zeroWidthSpaceAdvancesCursor, YES, @"Terminal: Zero-Width Space (U+200B) advances cursor?\nWhile a zero-width space should not advance the cursor per the Unicode spec, both Terminal.app and Konsole do this, and Weechat depends on it. You must restart iTerm2 after changing this setting.");
 DEFINE_BOOL(fullHeightCursor, NO, @"Terminal: Cursor occupies line spacing area.\nIf lines have more than 100% vertical spacing and this setting is enabled the bottom of the cursor will be aligned to the bottom of the spacing area.");
 DEFINE_FLOAT(underlineCursorOffset, 0, @"Terminal: Vertical offset for underline cursor.\nPositive values move it up, negative values move it down.");
+DEFINE_BOOL(preventEscapeSequenceFromClearingHistory, NO, @"Terminal: Prevent CSI 3 J from clearing scrollback history?\nThis is also known as thethe terminfo E3 capability.");
+DEFINE_FLOAT(verticalBarCursorWidth, 1, @"Terminal: Width of vertical bar cursor.");
 
 #pragma mark Hotkey
 DEFINE_FLOAT(hotkeyTermAnimationDuration, 0.25, @"Hotkey: Duration in seconds of the hotkey window animation.\nWarning: reducing this value may cause problems if you have multiple displays.");
@@ -155,7 +158,10 @@ DEFINE_FLOAT(pointSizeOfTimeStamp, 10, @"General: Point size for timestamps");
 DEFINE_INT(terminalMargin, 5, @"General: Width of left and right margins in terminal panes\nHow much space to leave between the left and right edges of the terminal.\nYou must restart iTerm2 after modifying this property. Saved window arrangements should be re-created.");
 DEFINE_INT(terminalVMargin, 2, @"General: Height of top and bottom margins in terminal panes\nHow much space to leave between the top and bottom edges of the terminal.\nYou must restart iTerm2 after modifying this property. Saved window arrangements should be re-created.");
 DEFINE_BOOL(zippyTextDrawing, YES, @"General: Use zippy text drawing algorithm?\nThis draws non-ASCII text more quickly but with lower fidelity. This setting is ignored if ligatures are enabled in Prefs > Profiles > Text.");
+DEFINE_BOOL(lowFiCombiningMarks, NO, @"General: Prefer speed to accuracy for characters with combining marks?");
+
 DEFINE_BOOL(useVirtualKeyCodesForDetectingDigits, YES, @"General: On keyboards that require a modifier to press a digit, do not require that modifier for switching between windows, tabs, and panes by number.\nFor example, AZERTY requires you to hold down Shift to enter a number. To switch tabs with Cmd+Number on an AZERTY keyboard, you must enable this setting. Then, for example, Cmd-& switches to tab 1. When this setting is enabled, some user-defined shortcuts may become unavailable because the tab/window/pane switching behavior takes precedence.");
+DEFINE_STRING(viewManPageCommand, @"man %@ || sleep 3", @"General: Command to view man pages.\nUsed when you press the man page button on the touch bar. %@ is replaced with the command. End the command with & to avoid opening an iTerm2 window (e.g., if you're launching an external viewer).");
 
 #pragma mark - Semantic History
 DEFINE_BOOL(ignoreHardNewlinesInURLs, NO, @"Semantic History: Ignore hard newlines for the purposes of locating URLs and file names for Semantic History.\nIf a hard newline occurs at the end of a line then cmd-click will not see it all unless this setting is turned on. This is useful for some interactive applications. Turning this on will remove newlines from the \\3 and \\4 substitutions.");
@@ -178,7 +184,7 @@ DEFINE_BOOL(showSessionRestoredBanner, YES, @"Session: When restoring a session 
 DEFINE_STRING(autoLogFormat,
               @"\\(session.creationTimeString).\\(session.name).\\(session.termid).\\(iterm2.pid).\\(session.autoLogId).log",
               @"Session: Format for automatic session log filenames.\nSee the Badges documentation for supported substitutions.");
-
+DEFINE_BOOL(focusNewSplitPaneWithFocusFollowsMouse, YES, @"Session: When focus follows mouse is enabled, should new split panes automatically be focused?");
 
 
 #pragma mark - Window
@@ -191,6 +197,7 @@ DEFINE_BOOL(fontChangeAffectsBroadcastingSessions, NO, @"Windows: Should growing
 
 #pragma mark tmux
 DEFINE_BOOL(noSyncNewWindowOrTabFromTmuxOpensTmux, NO, @"Tmux Integration: Suppress alert asking what kind of tab/window to open in tmux integration.");
+DEFINE_BOOL(tmuxUsesDedicatedProfile, YES, @"Tmux Integration: Tmux always uses the “tmux” profile.\nIf disabled, tmux sessions use the profile of the session you ran tmux -CC in.");
 
 #pragma mark Warnings
 DEFINE_BOOL(neverWarnAboutMeta, NO, @"Warnings: Suppress a warning when Option Key Acts as Meta is enabled in Prefs>Profiles>Keys.");
@@ -273,5 +280,8 @@ DEFINE_BOOL(trackingRunloopForLiveResize, YES, @"Experimental Features: Use a tr
 DEFINE_BOOL(enableAPIServer, NO, @"Experimental Features: Enable websocket API server.\nYou must restart iTerm2 for this change to take effect.");
 DEFINE_BOOL(useGCDUpdateTimer, YES, @"Experimental Features: Use GCD-based update timer instead of NSTimer.\nThis should cause more regular screen updates. Restart iTerm2 after changing this setting.");
 DEFINE_BOOL(drawOutlineAroundCursor, NO, @"Experimental Features: Draw outline around underline and vertical bar cursors using background color.");
+DEFINE_BOOL(killSessionsOnLogout, NO, @"Experimental Features: Kill sessions on logout.\nA possible fix for issue 4147.");
+DEFINE_BOOL(detectPasswordInput, NO, @"Experimental Features: Show key at cursor at password prompt?");
+DEFINE_BOOL(dwcLineCache, NO, @"Experimental Features: Enable cache of double-width character locations?\nThis should improve performance. It is always on in nightly builds. You must restart iTerm2 for this setting to take effect.");
 
 @end

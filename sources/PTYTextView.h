@@ -51,7 +51,16 @@ typedef NS_ENUM(NSInteger, PTYTextViewSelectionEndpoint) {
 
 typedef NS_ENUM(NSInteger, PTYTextViewSelectionExtensionDirection) {
     kPTYTextViewSelectionExtensionDirectionLeft,
-    kPTYTextViewSelectionExtensionDirectionRight
+    kPTYTextViewSelectionExtensionDirectionRight,
+
+    // These ignore the unit and are simple movements.
+    kPTYTextViewSelectionExtensionDirectionUp,
+    kPTYTextViewSelectionExtensionDirectionDown,
+    kPTYTextViewSelectionExtensionDirectionStartOfLine,
+    kPTYTextViewSelectionExtensionDirectionEndOfLine,
+    kPTYTextViewSelectionExtensionDirectionTop,
+    kPTYTextViewSelectionExtensionDirectionBottom,
+    kPTYTextViewSelectionExtensionDirectionStartOfIndentation,
 };
 
 typedef NS_ENUM(NSInteger, PTYTextViewSelectionExtensionUnit) {
@@ -178,6 +187,12 @@ typedef NS_ENUM(NSInteger, PTYTextViewSelectionExtensionUnit) {
 - (void)textViewBurySession;
 - (void)textViewShowHoverURL:(NSString *)url;
 
+- (BOOL)textViewCopyMode;
+- (BOOL)textViewCopyModeSelecting;
+- (VT100GridCoord)textViewCopyModeCursorCoord;
+- (BOOL)textViewPasswordInput;
+- (void)textViewDidSelectRangeForFindOnPage:(VT100GridCoordRange)range;
+
 @end
 
 @interface PTYTextView : NSView <
@@ -252,9 +267,6 @@ typedef NS_ENUM(NSInteger, PTYTextViewSelectionExtensionUnit) {
 // Returns the entire content of the view as a string.
 @property(nonatomic, readonly) NSString *content;
 
-// Returns the time (since 1970) when the selection was last modified, or 0 if there is no selection
-@property(nonatomic, readonly) NSTimeInterval selectionTime;
-
 // Regular and non-ascii fonts.
 @property(nonatomic, readonly) NSFont *font;
 @property(nonatomic, readonly) NSFont *nonAsciiFont;
@@ -307,6 +319,9 @@ typedef void (^PTYTextViewDrawingHookBlock)(iTermTextDrawingHelper *);
 
 // Returns the desired height of this view that exactly fits its contents.
 @property(nonatomic, readonly) CGFloat desiredHeight;
+
+// Lines that are currently visible on the screen.
+@property(nonatomic, readonly) VT100GridRange rangeOfVisibleLines;
 
 // Returns the size of a cell for a given font. hspace and vspace are multipliers and the width
 // and height.
@@ -416,7 +431,10 @@ typedef void (^PTYTextViewDrawingHookBlock)(iTermTextDrawingHelper *);
         withOffset:(int)offset;
 
 // Remove highlighted terms from previous search.
-- (void)clearHighlights;
+// If resetContext is set then the search state will get reset to empty.
+// Otherwise, search results and highlights are removed and can be updated
+// on the next search.
+- (void)clearHighlights:(BOOL)resetContext;
 
 // Performs a find on the next chunk of text.
 - (BOOL)continueFind:(double *)progress;
@@ -506,6 +524,17 @@ typedef void (^PTYTextViewDrawingHookBlock)(iTermTextDrawingHelper *);
 - (void)moveSelectionEndpoint:(PTYTextViewSelectionEndpoint)endpoint
                   inDirection:(PTYTextViewSelectionExtensionDirection)direction
                            by:(PTYTextViewSelectionExtensionUnit)unit;
+
+- (void)moveSelectionEndpoint:(PTYTextViewSelectionEndpoint)endpoint
+                  inDirection:(PTYTextViewSelectionExtensionDirection)direction
+                           by:(PTYTextViewSelectionExtensionUnit)unit
+                  cursorCoord:(VT100GridCoord)cursorCoord;
+
+- (VT100GridWindowedRange)rangeByExtendingRange:(VT100GridWindowedRange)existingRange
+                                       endpoint:(PTYTextViewSelectionEndpoint)endpoint
+                                      direction:(PTYTextViewSelectionExtensionDirection)direction
+                                      extractor:(iTermTextExtractor *)extractor
+                                           unit:(PTYTextViewSelectionExtensionUnit)unit;
 
 // For focus follows mouse. Allows a new split pane to become focused even though the mouse pointer
 // is elsewhere. Records the mouse position. Refuses first responder as long as the mouse doesn't
