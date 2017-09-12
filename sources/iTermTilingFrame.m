@@ -23,14 +23,14 @@
         self.manager = manager;
         self.rect = _rect;
         
-        self.numberLabelHolder = [[NSWindow alloc] initWithContentRect:_rect styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreRetained defer:YES];
+        self.numberLabelHolder = [[[NSWindow alloc] initWithContentRect:_rect styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreRetained defer:YES] autorelease];
         self.numberLabelHolder.opaque = NO;
         self.numberLabelHolder.backgroundColor = [NSColor clearColor];
         self.numberLabelHolder.ignoresMouseEvents = YES;
         self.numberLabelHolder.hasShadow = NO;
         self.numberLabelHolder.level = NSFloatingWindowLevel;
 
-        self.numberLabel = [[NSTextView alloc] init];
+        self.numberLabel = [[[NSTextView alloc] init] autorelease];
         self.numberLabel.textColor = [NSColor textColor];
         self.numberLabel.string = @"";
         self.numberLabel.textContainerInset = NSMakeSize(5, 5);
@@ -51,7 +51,7 @@
 
 - (NSArray<iTermTilingWindow *> *)windows
 {
-        NSMutableArray *wins = [[NSMutableArray alloc] init];
+        NSMutableArray *wins = [[[NSMutableArray alloc] init] autorelease];
         
         for (int i = 0; i < [[[self manager] windows] count]; i++) {
                 iTermTilingWindow *w = [[[self manager] windows] objectAtIndex:i];

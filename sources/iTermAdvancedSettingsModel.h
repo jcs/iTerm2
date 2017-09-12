@@ -194,4 +194,9 @@
 + (BOOL)lowFiCombiningMarks;
 + (CGFloat)verticalBarCursorWidth;
 
++ (int)tilingWMGap;
++ (int)tilingWMBorderWidth;
++ (NSString *)tilingWMBorderActiveColor;
++ (NSString *)tilingWMBorderInactiveColor;
+
 @end

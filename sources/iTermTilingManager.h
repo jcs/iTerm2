@@ -25,13 +25,13 @@ typedef NS_ENUM(NSInteger, iTermTilingFrameDirection) {
 
 @property (retain) NSMutableArray<iTermTilingFrame *> *frames;
 @property (retain) NSMutableArray<iTermTilingWindow *> *windows;
-@property (assign) NSColor *activeFrameBorderColor;
-@property (assign) NSColor *inactiveFrameBorderColor;
-@property int borderWidth;
-@property int gap;
 @property BOOL showingFrameNumbers;
 
 + (instancetype)sharedInstance;
+- (NSColor *)activeFrameBorderColor;
+- (NSColor *)inactiveFrameBorderColor;
+- (int)borderWidth;
+- (int)gap;
 - (void)dumpFrames;
 - (BOOL)startAdjustingFrames;
 - (void)finishAdjustingFrames;

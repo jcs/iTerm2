@@ -1,5 +1,5 @@
 //
-//  iTermTilingManager.m
+//  iTermTilingManager.m (ARC)
 //  iTerm2
 //
 //  Created by joshua stein on 12/1/16.
@@ -11,6 +11,8 @@
 #import "iTermTilingWindow.h"
 #import "iTermKeyBindingMgr.h"
 #import "iTermTilingToast.h"
+#import "iTermAdvancedSettingsModel.h"
+#import "NSColor+iTerm.h"
 #import "NSScreen+iTerm.h"
 #import "DebugLogging.h"
 
@@ -25,7 +27,7 @@
         static id instance;
         static dispatch_once_t onceToken;
         dispatch_once(&onceToken, ^{
-                instance = [[self alloc] init];
+                instance = [[[self alloc] init] autorelease];
         });
         return instance;
 }
@@ -37,19 +39,13 @@
         
         adjustingFrames = NO;
         
-        self.windows = [[NSMutableArray alloc] init];
+        self.windows = [[[NSMutableArray alloc] init] autorelease];
         winNumbers = 0;
-        
-        /* TODO: get these from preferences */
-        self.gap = 16;
-        self.borderWidth = 4;
-        self.activeFrameBorderColor = [NSColor orangeColor];
-        self.inactiveFrameBorderColor = [NSColor grayColor];
 
         /* create one frame taking up the screen */
         NSScreen *screen = [NSScreen mainScreen];
         iTermTilingFrame *frame = [[iTermTilingFrame alloc] initWithRect:screen.visibleFrameIgnoringHiddenDock andManager:self];
-        self.frames = [[NSMutableArray alloc] initWithObjects:frame, nil];
+        self.frames = [[[NSMutableArray alloc] initWithObjects:frame, nil] autorelease];
 
         [[NSNotificationCenter defaultCenter] addObserver:self
                                                  selector:@selector(terminalWindowCreated:)
@@ -63,6 +59,34 @@
 {
         [[NSNotificationCenter defaultCenter] removeObserver:self];
         [super dealloc];
+}
+
+- (int)gap
+{
+        return [iTermAdvancedSettingsModel tilingWMGap];
+}
+
+- (int)borderWidth
+{
+        return [iTermAdvancedSettingsModel tilingWMBorderWidth];
+}
+
+- (NSColor *)activeFrameBorderColor
+{
+        NSColor *c = [NSColor colorWithString:[iTermAdvancedSettingsModel tilingWMBorderActiveColor]];
+        if (!c)
+                c = [NSColor orangeColor];
+        
+        return c;
+}
+
+- (NSColor *)inactiveFrameBorderColor
+{
+        NSColor *c = [NSColor colorWithString:[iTermAdvancedSettingsModel tilingWMBorderInactiveColor]];
+        if (!c)
+                c = [NSColor grayColor];
+
+        return c;
 }
 
 - (void)dumpFrames
@@ -106,7 +130,7 @@
                 winNumbers = 0;
         else if ([window number] == winNumbers - 1)
                 winNumbers--;
-        
+
         [fromFrame focusFrontWindowAndMakeKey:[[self currentFrame] isEqualTo:fromFrame]];
 }
 
@@ -399,6 +423,7 @@
         }
         
         [[self frames] removeObject:cur];
+        [cur dealloc];
         
         [self resizeFrames];
         
@@ -515,19 +540,19 @@
 
 - (NSArray<iTermTilingWindow *> *)windowsInFront
 {
-        NSMutableArray *frontWins = [[NSMutableArray alloc] init];
+        NSMutableArray *frontWins = [[[NSMutableArray alloc] init] autorelease];
         for (int i = 0; i < [[self frames] count]; i++) {
                 iTermTilingWindow *w = [[[self frames] objectAtIndex:i] frontWindow];
                 if (w)
                         [frontWins addObject:w];
         }
         
-        return [NSArray arrayWithArray:frontWins];
+        return [[NSArray arrayWithArray:frontWins] autorelease];
 }
 
 - (NSArray<iTermTilingWindow *> *)windowsNotInFront
 {
-        NSArray *frontWins = [self windowsInFront];
+        NSArray *frontWins = [[self windowsInFront] autorelease];
         
         NSMutableArray *wins = [[NSMutableArray alloc] init];
         for (int i = 0; i < [[self windows] count]; i++) {
@@ -535,7 +560,7 @@
                         [wins addObject:[[self windows] objectAtIndex:i]];
         }
         
-        return [NSArray arrayWithArray:wins];
+        return [[NSArray arrayWithArray:wins] autorelease];
 }
 
 @end

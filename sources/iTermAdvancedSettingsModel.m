@@ -284,4 +284,11 @@ DEFINE_BOOL(killSessionsOnLogout, NO, @"Experimental Features: Kill sessions on 
 DEFINE_BOOL(detectPasswordInput, NO, @"Experimental Features: Show key at cursor at password prompt?");
 DEFINE_BOOL(dwcLineCache, NO, @"Experimental Features: Enable cache of double-width character locations?\nThis should improve performance. It is always on in nightly builds. You must restart iTerm2 for this setting to take effect.");
 
+#pragma mark - Tiling Window Manager Features
+
+DEFINE_INT(tilingWMGap, 12, @"Tiling Window Manager: Gap between window frames\nHow much space to leave between each framed window.");
+DEFINE_INT(tilingWMBorderWidth, 4, @"Tiling Window Manager: Frame border width\nThe width of the border drawn around framed windows.");
+DEFINE_STRING(tilingWMBorderActiveColor, @"#cb8300", @"Tiling Window Manager: Active frame border color (hex)");
+DEFINE_STRING(tilingWMBorderInactiveColor, @"#666666", @"Tiling Window Manager: Inactive frame border color (hex)");
+
 @end
